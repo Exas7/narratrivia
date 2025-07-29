@@ -75,10 +75,8 @@ class SettingsProvider extends ChangeNotifier {
       await prefs.setDouble('sfxVolume', _sfxVolume);
       await AudioManager().updateSfxVolume(_sfxVolume);
 
-      // Play test sound when adjusting SFX volume - usando suono disponibile
-      if (_sfxVolume > 0) {
-        await AudioManager().playNavigateForward();
-      }
+      // Don't play test sound during continuous sliding
+      // Let the settings screen handle when to play sounds
 
       notifyListeners();
     } catch (e) {

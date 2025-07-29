@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:audioplayers/audioplayers.dart';
 // import 'package:firebase_core/firebase_core.dart'; // Commenta per ora
 import 'screens/splash_screen.dart';
 import 'providers/settings_provider.dart';
@@ -10,6 +11,29 @@ import 'l10n/app_localizations.dart';
 void main() async {
   // Ensure Flutter binding is initialized
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Configure AudioContext for proper audio focus management
+  try {
+    await AudioPlayer.global.setAudioContext(
+      AudioContext(
+        android: AudioContextAndroid(
+          contentType: AndroidContentType.sonification,
+          usageType: AndroidUsageType.game,
+          audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+          stayAwake: true,
+        ),
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playback,
+          options: {
+            AVAudioSessionOptions.mixWithOthers,
+          },
+        ),
+      ),
+    );
+  } catch (e) {
+    // AudioContext configuration failed, continue with defaults
+    debugPrint('AudioContext configuration failed: $e');
+  }
 
   // Initialize Firebase - COMMENTATO PER ORA
   // try {

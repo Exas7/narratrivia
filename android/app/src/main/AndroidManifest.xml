@@ -1,29 +1,37 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permessi necessari per Firebase e funzionalità app -->
+    <!-- Permission necessari per Firebase e functionality app -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- Permission per audio -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <application
-        android:label="Narratrivia"
-        android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="false">
+        android:label="Narrative"
+        android:usesCleartextTraffic="false"
+        android:enableOnBackInvokedCallback="true">
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.gagofed.narratrivia.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:screenOrientation="portrait">
 
-            <!-- Theme applicato durante l'inizializzazione -->
+            <!-- Theme application durante reinitialization -->
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme"
+                />
+
+            <!-- Splash screen background color -->
+            <meta-data
+                android:name="io.flutter.embedding.android.SplashScreenDrawable"
+                android:resource="@drawable/launch_background"
                 />
 
             <intent-filter>
@@ -36,9 +44,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Firebase configuration (important!) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
     </application>
 
-    <!-- Query per gestire intent di testo -->
+    <!-- Query per intent di testo -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

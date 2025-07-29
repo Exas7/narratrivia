@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../screens/main_menu_screen.dart';
-import '../../services/audio_manager.dart';
+import '../services/audio_manager.dart';
 
 class CompanyLogoScreen extends StatefulWidget {
   const CompanyLogoScreen({super.key});
@@ -73,8 +73,9 @@ class _CompanyLogoScreenState extends State<CompanyLogoScreen>
 
     try {
       await AudioManager().startBackgroundMusic();
+      print('Background music started successfully');
     } catch (e) {
-      // Silently fail
+      print('Error starting background music: $e');
     }
 
     // Attendi il resto del fade-out (2400ms rimanenti)

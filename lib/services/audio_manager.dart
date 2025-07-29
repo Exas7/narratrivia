@@ -1,11 +1,14 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 
 class AudioManager {
   static final AudioManager _instance = AudioManager._internal();
   factory AudioManager() => _instance;
+
   AudioManager._internal() {
     _initializeAppLifecycleListener();
+    _initializePlayers();
   }
 
   final AudioPlayer _backgroundMusicPlayer = AudioPlayer();
@@ -15,59 +18,89 @@ class AudioManager {
   bool _isSfxEnabled = true;
   double _musicVolume = 0.7;
   double _sfxVolume = 0.8;
+  bool _isMusicActuallyPlaying = false;
+
+  final List<String> _sfxQueue = [];
+  bool _isSfxCurrentlyPlaying = false;
+  Timer? _sfxTimeoutTimer;
 
   // Getters
   bool get isMusicEnabled => _isMusicEnabled;
   bool get isSfxEnabled => _isSfxEnabled;
   double get musicVolume => _musicVolume;
   double get sfxVolume => _sfxVolume;
+  bool get isMusicPlaying => _isMusicActuallyPlaying;
 
-  // Setters per musica
+  void _initializePlayers() {
+    _backgroundMusicPlayer.setReleaseMode(ReleaseMode.loop);
+    _backgroundMusicPlayer.setPlayerMode(PlayerMode.mediaPlayer);
+
+    _backgroundMusicPlayer.onPlayerStateChanged.listen((PlayerState state) {
+      _isMusicActuallyPlaying = (state == PlayerState.playing);
+    });
+
+    _sfxPlayer.setReleaseMode(ReleaseMode.release);
+    _sfxPlayer.setPlayerMode(PlayerMode.mediaPlayer);
+
+    _sfxPlayer.onPlayerComplete.listen((_) {
+      _cancelSfxTimeout();
+      _isSfxCurrentlyPlaying = false;
+      _processNextSfx();
+    });
+  }
+
   void setMusicEnabled(bool enabled) {
     _isMusicEnabled = enabled;
     if (!enabled) {
-      _backgroundMusicPlayer.pause();
+      if (_isMusicActuallyPlaying) {
+        _backgroundMusicPlayer.pause();
+      }
     } else {
-      _backgroundMusicPlayer.resume();
+      if (_backgroundMusicPlayer.state == PlayerState.paused) {
+        _backgroundMusicPlayer.resume();
+      }
     }
   }
 
-  void setMusicVolume(double volume) {
-    _musicVolume = volume;
-    _backgroundMusicPlayer.setVolume(volume);
-  }
-
-  // Metodi per SettingsProvider
   Future<void> updateMusicVolume(double volume) async {
-    _musicVolume = volume;
-    await _backgroundMusicPlayer.setVolume(volume);
+    _musicVolume = volume.clamp(0.0, 1.0);
+    try {
+      await _backgroundMusicPlayer.setVolume(_musicVolume);
+    } catch (e) {
+      // Silent error handling
+    }
   }
 
   Future<void> updateSfxVolume(double volume) async {
-    _sfxVolume = volume;
-    await _sfxPlayer.setVolume(volume);
+    _sfxVolume = volume.clamp(0.0, 1.0);
+    try {
+      await _sfxPlayer.setVolume(_sfxVolume);
+    } catch (e) {
+      // Silent error handling
+    }
   }
 
-  // Setters per SFX
   void setSfxEnabled(bool enabled) {
     _isSfxEnabled = enabled;
+    if (!enabled) {
+      _sfxQueue.clear();
+      _sfxPlayer.stop();
+      _cancelSfxTimeout();
+      _isSfxCurrentlyPlaying = false;
+    }
   }
 
-  void setSfxVolume(double volume) {
-    _sfxVolume = volume;
-    _sfxPlayer.setVolume(volume);
-  }
-
-  // Gestione ciclo di vita app per soundtrack
   void _initializeAppLifecycleListener() {
     SystemChannels.lifecycle.setMessageHandler((msg) async {
       switch (msg) {
         case 'AppLifecycleState.paused':
         case 'AppLifecycleState.inactive':
-          await pauseBackgroundMusic();
+          if (_isMusicActuallyPlaying) {
+            await _backgroundMusicPlayer.pause();
+          }
           break;
         case 'AppLifecycleState.resumed':
-          if (_isMusicEnabled) {
+          if (_isMusicEnabled && _backgroundMusicPlayer.state == PlayerState.paused) {
             await resumeBackgroundMusic();
           }
           break;
@@ -76,16 +109,17 @@ class AudioManager {
     });
   }
 
-  // Musica di sottofondo
   Future<void> startBackgroundMusic() async {
     if (!_isMusicEnabled) return;
 
     try {
-      await _backgroundMusicPlayer.setReleaseMode(ReleaseMode.loop);
+      if (_backgroundMusicPlayer.state == PlayerState.playing) {
+        await _backgroundMusicPlayer.stop();
+      }
       await _backgroundMusicPlayer.setVolume(_musicVolume);
       await _backgroundMusicPlayer.play(AssetSource('sounds/main_soundtrack.mp3'));
     } catch (e) {
-      // Gestione errore silente
+      _isMusicActuallyPlaying = false;
     }
   }
 
@@ -93,64 +127,90 @@ class AudioManager {
     try {
       await _backgroundMusicPlayer.stop();
     } catch (e) {
-      // Gestione errore silente
+      // Silent error handling
     }
   }
 
   Future<void> pauseBackgroundMusic() async {
-    try {
-      await _backgroundMusicPlayer.pause();
-    } catch (e) {
-      // Gestione errore silente
+    if (_backgroundMusicPlayer.state == PlayerState.playing) {
+      try {
+        await _backgroundMusicPlayer.pause();
+      } catch (e) {
+        // Silent error handling
+      }
     }
   }
 
   Future<void> resumeBackgroundMusic() async {
     if (!_isMusicEnabled) return;
-
-    try {
-      await _backgroundMusicPlayer.resume();
-    } catch (e) {
-      // Gestione errore silente
+    if (_backgroundMusicPlayer.state == PlayerState.paused) {
+      try {
+        await _backgroundMusicPlayer.resume();
+      } catch (e) {
+        // Silent error handling
+      }
     }
   }
 
-  // Effetti sonori - PERCORSI CORRETTI
   Future<void> playNavigateForward() async {
-    if (!_isSfxEnabled) return;
     await _playSfx('sounds/sfx/ui/navigate_forward.wav');
   }
 
   Future<void> playReturnBack() async {
-    if (!_isSfxEnabled) return;
     await _playSfx('sounds/sfx/ui/return_back.wav');
   }
 
-  // Metodo per SettingsScreen
   Future<void> playNavigationBack() async {
     await playReturnBack();
   }
 
-  // Effetti sonori - PERCORSO CORRETTO
   Future<void> playButtonClick() async {
-    if (!_isSfxEnabled) return;
     await _playSfx('sounds/sfx/ui/button_click.wav');
   }
 
-  // Helper privato per riprodurre SFX
   Future<void> _playSfx(String assetPath) async {
-    try {
-      await _sfxPlayer.stop(); // Stop any current sound
-      await _sfxPlayer.setVolume(_sfxVolume);
-      await _sfxPlayer.play(AssetSource(assetPath), mode: PlayerMode.lowLatency);
-    } catch (e) {
-      // Gestione errore silente
-      print('Error playing sound: $assetPath - $e'); // Debug only
+    if (!_isSfxEnabled) return;
+
+    _sfxQueue.add(assetPath);
+    if (!_isSfxCurrentlyPlaying) {
+      _processNextSfx();
     }
   }
 
-  // Cleanup
+  Future<void> _processNextSfx() async {
+    if (_sfxQueue.isEmpty || !_isSfxEnabled || _isSfxCurrentlyPlaying) {
+      return;
+    }
+
+    _isSfxCurrentlyPlaying = true;
+    final assetPath = _sfxQueue.removeAt(0);
+
+    _startSfxTimeout();
+
+    try {
+      await _sfxPlayer.play(AssetSource(assetPath));
+    } catch (e) {
+      _cancelSfxTimeout();
+      _isSfxCurrentlyPlaying = false;
+      _processNextSfx();
+    }
+  }
+
+  void _startSfxTimeout() {
+    _cancelSfxTimeout();
+    _sfxTimeoutTimer = Timer(const Duration(milliseconds: 1500), () {
+      _isSfxCurrentlyPlaying = false;
+      _processNextSfx();
+    });
+  }
+
+  void _cancelSfxTimeout() {
+    _sfxTimeoutTimer?.cancel();
+    _sfxTimeoutTimer = null;
+  }
+
   void dispose() {
+    _cancelSfxTimeout();
     _backgroundMusicPlayer.dispose();
     _sfxPlayer.dispose();
   }
