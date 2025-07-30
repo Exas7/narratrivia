@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../screens/main_menu_screen.dart';
 import '../services/audio_manager.dart';
@@ -59,26 +60,29 @@ class _CompanyLogoScreenState extends State<CompanyLogoScreen>
   }
 
   void _startLogoSequence() async {
-    // Fade-in dal nero (1 secondo)
+    // Fade-in from black (1 second)
     await _fadeInController.forward();
 
-    // Resta visibile (1 secondo)
+    // Hold visibility (1 second)
     await Future.delayed(const Duration(seconds: 1));
 
-    // Inizia fade-out al nero
+    // Start fade-out to black
     _fadeOutController.forward();
 
-    // Avvia musica dopo 100ms dall'inizio del fade-out
+    // Start music 100ms after fade-out begins
     await Future.delayed(const Duration(milliseconds: 100));
 
+    // FIX: Restored the full try-catch block for robust error handling
     try {
       await AudioManager().startBackgroundMusic();
-      print('Background music started successfully');
     } catch (e) {
-      print('Error starting background music: $e');
+      // It's good practice to log errors during development
+      if (kDebugMode) {
+        print('Error starting background music: $e');
+      }
     }
 
-    // Attendi il resto del fade-out (2400ms rimanenti)
+    // Wait for the rest of the fade-out (remaining 2400ms)
     await Future.delayed(const Duration(milliseconds: 2400));
 
     if (!mounted) return;

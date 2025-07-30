@@ -168,6 +168,12 @@ class AudioManager {
     await _playSfx('sounds/sfx/ui/button_click.wav');
   }
 
+  Future<void> playTransitionSwoosh() async {
+    if (!_isSfxCurrentlyPlaying) {
+      await _playSfx('sounds/sfx/ui/transition_swoosh.wav');
+    }
+  }
+
   Future<void> _playSfx(String assetPath) async {
     if (!_isSfxEnabled) return;
 
@@ -198,7 +204,7 @@ class AudioManager {
 
   void _startSfxTimeout() {
     _cancelSfxTimeout();
-    _sfxTimeoutTimer = Timer(const Duration(milliseconds: 1500), () {
+    _sfxTimeoutTimer = Timer(const Duration(milliseconds: 300), () {
       _isSfxCurrentlyPlaying = false;
       _processNextSfx();
     });
