@@ -1,8 +1,11 @@
+// lib/screens/main_menu_screen.dart
+
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
-import 'game_menu_screen.dart';
+import 'hub_navigation/medium_hub.dart';
 import 'settings_screen.dart';
 import 'credits_screen.dart';
+import '../services/audio_manager.dart';
 
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key});
@@ -174,11 +177,14 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   return Transform.translate(
                     offset: Offset(0, _floatAnimation.value),
                     child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const GameMenuScreen()),
-                        );
+                      onTap: () async {
+                        await AudioManager().playNavigateForward();
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const MediumHub()),
+                          );
+                        }
                       },
                       child: Container(
                         width: 900,
@@ -205,11 +211,14 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   return Transform.translate(
                     offset: Offset(0, _settingsAnimation.value),
                     child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const SettingsScreen()),
-                        );
+                      onTap: () async {
+                        await AudioManager().playNavigateForward();
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                          );
+                        }
                       },
                       child: Container(
                         width: 120,
@@ -236,11 +245,14 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   return Transform.translate(
                     offset: Offset(0, _creditsAnimation.value),
                     child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const CreditsScreen()),
-                        );
+                      onTap: () async {
+                        await AudioManager().playNavigateForward();
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const CreditsScreen()),
+                          );
+                        }
                       },
                       child: Container(
                         width: 120,

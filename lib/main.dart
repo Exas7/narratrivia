@@ -8,9 +8,23 @@ import 'screens/splash_screen.dart';
 import 'providers/settings_provider.dart';
 import 'l10n/app_localizations.dart';
 
+// FIX: Corrected the import paths to use the 'game_rooms' subdirectory
+import 'screens/hub_navigation/controllers/hub_constants.dart';
+import 'screens/hub_navigation/game_rooms/anime_room.dart';
+import 'screens/hub_navigation/game_rooms/books_room.dart';
+import 'screens/hub_navigation/game_rooms/comics_room.dart';
+import 'screens/hub_navigation/game_rooms/manga_room.dart';
+import 'screens/hub_navigation/game_rooms/movies_room.dart';
+import 'screens/hub_navigation/game_rooms/tvseries_room.dart';
+import 'screens/hub_navigation/game_rooms/videogames_room.dart';
+
+
 void main() async {
   // Ensure Flutter binding is initialized
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Set immersive full-screen mode to handle system gestures
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
   // Configure AudioContext for proper audio focus management
   try {
@@ -95,6 +109,16 @@ class MyApp extends StatelessWidget {
               Locale('pt'),
             ],
             home: const SplashScreen(),
+            // The routes map enables named navigation
+            routes: {
+              HubConstants.routeVideogamesRoom: (context) => const VideogamesRoom(),
+              HubConstants.routeBooksRoom: (context) => const BooksRoom(),
+              HubConstants.routeComicsRoom: (context) => const ComicsRoom(),
+              HubConstants.routeMangaRoom: (context) => const MangaRoom(),
+              HubConstants.routeAnimeRoom: (context) => const AnimeRoom(),
+              HubConstants.routeTvSeriesRoom: (context) => const TvSeriesRoom(),
+              HubConstants.routeMoviesRoom: (context) => const MoviesRoom(),
+            },
           );
         },
       ),
