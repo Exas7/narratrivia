@@ -1,11 +1,9 @@
-// lib/screens/main_menu_screen.dart
-
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'hub_navigation/medium_hub.dart';
 import 'settings_screen.dart';
 import 'credits_screen.dart';
-import '../services/audio_manager.dart';
+import '/core/services/audio_manager.dart';
 
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key});
@@ -77,6 +75,24 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     _creditsController.repeat(reverse: true);
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Pre-carica tutti i background delle stanze monotematiche
+    _preloadRoomBackgrounds();
+  }
+
+  void _preloadRoomBackgrounds() {
+    // Pre-carica i 7 background delle stanze panoramiche
+    precacheImage(const AssetImage('assets/images/backgrounds/rooms/videogames_room.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/rooms/books_room.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/rooms/comics_room.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/rooms/manga_room.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/rooms/anime_room.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/rooms/tvseries_room.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/rooms/movies_room.png'), context);
+  }
+
   void _initializeTwinkleStars() {
     final random = math.Random();
 
@@ -135,6 +151,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -149,62 +168,73 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           children: [
             ..._buildTwinkleStars(),
 
+            // Logo Narratrivia
             Positioned(
-              top: 20,
+              top: -100,
               left: 0,
               right: 0,
-              child: Center(
-                child: Container(
-                  width: 750,
-                  height: 300,
-                  decoration: const BoxDecoration(
-                    image: DecorationImage(
-                      image: AssetImage('assets/images/logos/narratrivia_logo.png'),
-                      fit: BoxFit.contain,
+              child: SafeArea(
+                child: Center(
+                  child: Container(
+                    width: screenWidth * 1,
+                    height: screenHeight * 0.60,
+                    decoration: const BoxDecoration(
+                      image: DecorationImage(
+                        image: AssetImage('assets/images/logos/narratrivia_logo.png'),
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
 
+            // Astronave
             Positioned(
-              top: MediaQuery.of(context).size.height / 2 - 450 - 75,
+              top: screenHeight * 0.18,
               left: 0,
               right: 0,
-              child: AnimatedBuilder(
-                animation: _floatAnimation,
-                builder: (context, child) {
-                  return Transform.translate(
-                    offset: Offset(0, _floatAnimation.value),
-                    child: GestureDetector(
-                      onTap: () async {
-                        await AudioManager().playNavigateForward();
-                        if (context.mounted) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const MediumHub()),
-                          );
-                        }
-                      },
-                      child: Container(
-                        width: 900,
-                        height: 900,
-                        decoration: const BoxDecoration(
-                          image: DecorationImage(
-                            image: AssetImage('assets/images/backgrounds/external_view_spaceship.png'),
-                            fit: BoxFit.contain,
+              child: Center(
+                child: AnimatedBuilder(
+                  animation: _floatAnimation,
+                  builder: (context, child) {
+                    return Transform.translate(
+                      offset: Offset(0, _floatAnimation.value),
+                      child: GestureDetector(
+                        onTap: () async {
+                          // Salva il navigator prima dell'operazione asincrona
+                          final navigator = Navigator.of(context);
+
+                          // Esegui l'operazione asincrona
+                          await AudioManager().playNavigateForward();
+
+                          // Doppio controllo di sicurezza
+                          if (context.mounted) {
+                            navigator.push(
+                              MaterialPageRoute(builder: (context) => const MediumHub()),
+                            );
+                          }
+                        },
+                        child: Container(
+                          width: screenWidth * 0.9,
+                          height: screenWidth * 0.9,
+                          decoration: const BoxDecoration(
+                            image: DecorationImage(
+                              image: AssetImage('assets/images/backgrounds/external_view_spaceship.png'),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
 
+            // Settings icon
             Positioned(
-              top: 620,
-              right: 60,
+              bottom: screenHeight * 0.20,
+              left: screenWidth * 0.66 - (screenWidth * 0.25),
               child: AnimatedBuilder(
                 animation: _settingsAnimation,
                 builder: (context, child) {
@@ -212,17 +242,22 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                     offset: Offset(0, _settingsAnimation.value),
                     child: GestureDetector(
                       onTap: () async {
+                        // Salva il navigator prima dell'operazione asincrona
+                        final navigator = Navigator.of(context);
+
+                        // Esegui l'operazione asincrona
                         await AudioManager().playNavigateForward();
+
+                        // Doppio controllo di sicurezza
                         if (context.mounted) {
-                          Navigator.push(
-                            context,
+                          navigator.push(
                             MaterialPageRoute(builder: (context) => const SettingsScreen()),
                           );
                         }
                       },
                       child: Container(
-                        width: 120,
-                        height: 120,
+                        width: screenWidth * 0.50,
+                        height: screenWidth * 0.50,
                         decoration: const BoxDecoration(
                           image: DecorationImage(
                             image: AssetImage('assets/images/icons/settings_icon.png'),
@@ -236,9 +271,10 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               ),
             ),
 
+            // Credits icon
             Positioned(
-              top: 720,
-              left: 60,
+              bottom: screenHeight * 0.05, // 5% dal fondo
+              left: screenWidth * 0.33 - (screenWidth * 0.25),
               child: AnimatedBuilder(
                 animation: _creditsAnimation,
                 builder: (context, child) {
@@ -246,17 +282,22 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                     offset: Offset(0, _creditsAnimation.value),
                     child: GestureDetector(
                       onTap: () async {
+                        // Salva il navigator prima dell'operazione asincrona
+                        final navigator = Navigator.of(context);
+
+                        // Esegui l'operazione asincrona
                         await AudioManager().playNavigateForward();
+
+                        // Doppio controllo di sicurezza
                         if (context.mounted) {
-                          Navigator.push(
-                            context,
+                          navigator.push(
                             MaterialPageRoute(builder: (context) => const CreditsScreen()),
                           );
                         }
                       },
                       child: Container(
-                        width: 120,
-                        height: 120,
+                        width: screenWidth * 0.50,
+                        height: screenWidth * 0.50,
                         decoration: const BoxDecoration(
                           image: DecorationImage(
                             image: AssetImage('assets/images/icons/credits_icon.png'),

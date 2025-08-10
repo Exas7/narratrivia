@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/audio_manager.dart';
+import '../core/services/audio_manager.dart';
 
 class CreditsScreen extends StatefulWidget {
   const CreditsScreen({super.key});

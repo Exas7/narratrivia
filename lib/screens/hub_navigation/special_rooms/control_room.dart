@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../services/audio_manager.dart';
+import '/core/services/audio_manager.dart';
 import '../controllers/hub_constants.dart';
 
 /// Control Room special room - swipe down to return to hub

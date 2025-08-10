@@ -1,7 +1,7 @@
 // lib/screens/hub_navigation/special_rooms/trophy_hall.dart
 
 import 'package:flutter/material.dart';
-import '../../../services/audio_manager.dart';
+import '/core/services/audio_manager.dart';
 import '../controllers/hub_constants.dart';
 
 /// Trophy Hall special room - swipe up to return to hub

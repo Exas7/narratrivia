@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../screens/main_menu_screen.dart';
-import '../services/audio_manager.dart';
+import '/core/services/audio_manager.dart';
 
 class CompanyLogoScreen extends StatefulWidget {
   const CompanyLogoScreen({super.key});
@@ -57,6 +57,38 @@ class _CompanyLogoScreenState extends State<CompanyLogoScreen>
     ));
 
     _startLogoSequence();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Avvia il pre-caricamento degli asset mentre viene mostrato il logo
+    _preloadAssets();
+  }
+
+  void _preloadAssets() {
+    // Pre-carica icone del main menu
+    precacheImage(const AssetImage('assets/images/icons/settings_icon.png'), context);
+    precacheImage(const AssetImage('assets/images/icons/credits_icon.png'), context);
+    precacheImage(const AssetImage('assets/images/logos/narratrivia_logo.png'), context);
+
+    // Pre-carica i 7 archi
+    precacheImage(const AssetImage('assets/images/backgrounds/arcs/videogames_arc.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/arcs/books_arc.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/arcs/comics_arc.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/arcs/manga_arc.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/arcs/anime_arc.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/arcs/tvseries_arc.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/arcs/movies_arc.png'), context);
+
+    // Pre-carica le immagini di transizione
+    precacheImage(const AssetImage('assets/images/backgrounds/corridor_transition.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/trophyhall_transition.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/controlroom_transition.png'), context);
+
+    // Pre-carica le stanze speciali
+    precacheImage(const AssetImage('assets/images/backgrounds/trophy_hall.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/control_room.png'), context);
   }
 
   void _startLogoSequence() async {

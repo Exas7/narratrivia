@@ -3,9 +3,9 @@
 import 'package:flutter/material.dart';
 import 'hub_constants.dart';
 import 'gesture_controller.dart';
-import '../../../services/audio_manager.dart';
+import '/core/services/audio_manager.dart';
+import '../special_rooms/database_vault.dart';
 
-/// Main controller for hub navigation
 class HubController extends ChangeNotifier {
   // Controllers
   final GestureController _gestureController = GestureController();
@@ -16,11 +16,14 @@ class HubController extends ChangeNotifier {
   bool _isInSpecialRoom = false;
   String _currentSpecialRoom = '';
   bool lastTransitionWasHorizontal = true;
-
+  bool _isDatabaseVaultUnlocked = false; // NUOVO
 
   // Animation controllers
   AnimationController? _transitionAnimationController;
   Animation<double>? _transitionAnimation;
+
+  // Private variable for arc transitions
+  int? _targetArcIndex;
 
   // Getters
   int get currentArcIndex => _currentArcIndex;
@@ -29,9 +32,15 @@ class HubController extends ChangeNotifier {
   String get currentSpecialRoom => _currentSpecialRoom;
   GameMedium get currentMedium => HubConstants.mediums[_currentArcIndex];
   Animation<double>? get transitionAnimation => _transitionAnimation;
-  // FIX: Added the missing public getter for the gesture controller
   GestureController get gestureController => _gestureController;
+  bool get isDatabaseVaultUnlocked => _isDatabaseVaultUnlocked; // NUOVO
 
+  // NUOVO: Check Database Vault unlock status
+  Future<void> checkDatabaseVaultStatus() async {
+    // Per ora hardcoded, poi userà ProgressionController
+    _isDatabaseVaultUnlocked = false; // Cambia in true per testare sbloccato
+    notifyListeners();
+  }
 
   /// Initialize animation controllers
   void initAnimations(TickerProvider vsync) {
@@ -52,6 +61,8 @@ class HubController extends ChangeNotifier {
         _completeReturnTransition();
       }
     });
+
+    checkDatabaseVaultStatus(); // NUOVO
   }
 
   /// Handle drag start
@@ -90,8 +101,6 @@ class HubController extends ChangeNotifier {
     }
   }
 
-  /// NOTE: This onTap method is now handled by the GestureRecognizer in medium_hub.dart
-  /// It is kept here in case of future needs but is not actively called by the hub gesture layer.
   Future<void> onTap(BuildContext context, TapUpDetails details) async {
     if (_isTransitioning) return;
 
@@ -105,7 +114,6 @@ class HubController extends ChangeNotifier {
       return;
     }
 
-    // FIX: Corrected method name from isCenterTap to isCenterArcTap
     if (!_isInSpecialRoom && _gestureController.isCenterArcTap(context, tapPosition)) {
       await enterCurrentRoom(context);
     }
@@ -172,11 +180,30 @@ class HubController extends ChangeNotifier {
     _transitionAnimationController?.reverse();
   }
 
-  /// Enter the room for the current medium
+  /// Enter the room for the current medium - MODIFICATO
   Future<void> enterCurrentRoom(BuildContext context) async {
     if (_isTransitioning) return;
-    await AudioManager().playNavigateForward();
 
+    // Check se è Database Vault (indice 7)
+    if (_currentArcIndex == 7) {
+      if (!_isDatabaseVaultUnlocked) {
+        // Mostra messaggio locked
+        await AudioManager().playReturnBack();
+        return;
+      }
+
+      await AudioManager().playNavigateForward();
+      if (context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const DatabaseVault()),
+        );
+      }
+      return;
+    }
+
+    // Codice esistente per altre stanze
+    await AudioManager().playNavigateForward();
     final routeName = _getRouteForMedium(currentMedium.id);
     if (context.mounted && routeName != null) {
       Navigator.pushNamed(context, routeName);
@@ -220,10 +247,7 @@ class HubController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Private variable for arc transitions
-  int? _targetArcIndex;
-
-  /// Get background path for the current state
+  /// Get background path for the current state - MODIFICATO
   String getCurrentBackgroundPath() {
     if (_isTransitioning && _isInSpecialRoom) {
       return HubConstants.mediums[_currentArcIndex].arcPath;
@@ -233,6 +257,12 @@ class HubController extends ChangeNotifier {
           ? HubConstants.trophyHall.backgroundPath
           : HubConstants.controlRoom.backgroundPath;
     }
+
+    // Check se è Database Vault e se è locked
+    if (_currentArcIndex == 7 && !_isDatabaseVaultUnlocked) {
+      return HubConstants.mediums[7].lockedArcPath ?? currentMedium.arcPath;
+    }
+
     return currentMedium.arcPath;
   }
 

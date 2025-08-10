@@ -1,68 +1,77 @@
 import 'package:flutter/material.dart';
-import '../../../services/audio_manager.dart';
-import '../controllers/hub_constants.dart';
+import '/core/services/audio_manager.dart';
+import '/screens/hub_navigation/widgets/panoramic_rooms_view.dart';
 
 class TvSeriesRoom extends StatelessWidget {
   const TvSeriesRoom({super.key});
 
+  // Costanti per la stanza tv series
+  static const Color tvSeriesColor = Color(0xFF007BFF);
+  static const String roomTitle = 'TV SERIES';
+  static const String imagePath = 'assets/images/backgrounds/rooms/tvseries_room.png';
+  static const double imageWidth = 2560.0;
+  static const double imageHeight = 1440.0;
+
   @override
   Widget build(BuildContext context) {
-    final medium = HubConstants.mediums[5]; // TV Series
-
     return Scaffold(
-      body: Stack(
-        children: [
-          // Placeholder background with medium color
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: medium.color,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    medium.icon,
-                    size: 120,
-                    color: Colors.white.withOpacity(0.3),
+      backgroundColor: Colors.black,
+      body: PanoramicRoomsView(
+        imagePath: imagePath,
+        imageWidth: imageWidth,
+        imageHeight: imageHeight,
+        primaryColor: tvSeriesColor,
+        overlayContent: Stack(
+          children: [
+            // Pulsante back
+            Positioned(
+              top: 40,
+              left: 16,
+              child: SafeArea(
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back,
+                    color: tvSeriesColor,
+                    size: 30,
                   ),
-                  const SizedBox(height: 20),
-                  Text(
-                    medium.name.toUpperCase(),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                ],
+                  onPressed: () async {
+                    await AudioManager().playReturnBack();
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                    }
+                  },
+                ),
               ),
             ),
-          ),
-          // Back button
-          Positioned(
-            bottom: 40,
-            left: 20,
-            child: IconButton(
-              onPressed: () async {
-                await AudioManager().playReturnBack();
-                if (context.mounted) {
-                  Navigator.pop(context);
-                }
-              },
-              icon: const Icon(
-                Icons.arrow_back,
-                color: Colors.white,
-                size: 30,
-              ),
-              style: IconButton.styleFrom(
-                backgroundColor: Colors.black.withOpacity(0.5),
-                padding: const EdgeInsets.all(12),
+
+            // Titolo della stanza
+            Positioned(
+              top: 50,
+              right: 20,
+              child: SafeArea(
+                child: Text(
+                  roomTitle,
+                  style: const TextStyle(
+                    color: tvSeriesColor,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                    shadows: [
+                      Shadow(
+                        blurRadius: 10.0,
+                        color: tvSeriesColor,
+                        offset: Offset(0, 0),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
+
+            // Qui puoi aggiungere altri elementi UI specifici della stanza
+            // come pulsanti per iniziare quiz, statistiche, etc.
+          ],
+        ),
       ),
     );
   }

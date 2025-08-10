@@ -3,12 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:audioplayers/audioplayers.dart';
-// import 'package:firebase_core/firebase_core.dart'; // Commenta per ora
+import 'package:firebase_core/firebase_core.dart';
 import 'screens/splash_screen.dart';
-import 'providers/settings_provider.dart';
+import 'core/services/settings_provider.dart';
 import 'l10n/app_localizations.dart';
 
-// FIX: Corrected the import paths to use the 'game_rooms' subdirectory
 import 'screens/hub_navigation/controllers/hub_constants.dart';
 import 'screens/hub_navigation/game_rooms/anime_room.dart';
 import 'screens/hub_navigation/game_rooms/books_room.dart';
@@ -49,12 +48,12 @@ void main() async {
     debugPrint('AudioContext configuration failed: $e');
   }
 
-  // Initialize Firebase - COMMENTATO PER ORA
-  // try {
-  //   await Firebase.initializeApp();
-  // } catch (e) {
-  //   debugPrint('Firebase initialization error: $e');
-  // }
+  // Initialize Firebase
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase initialization error: $e');
+  }
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
@@ -108,7 +107,7 @@ class MyApp extends StatelessWidget {
               Locale('de'),
               Locale('pt'),
             ],
-            home: const SplashScreen(),
+            home: const _PreloadWrapper(),
             // The routes map enables named navigation
             routes: {
               HubConstants.routeVideogamesRoom: (context) => const VideogamesRoom(),
@@ -123,5 +122,37 @@ class MyApp extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+// Wrapper widget per gestire il pre-caricamento
+class _PreloadWrapper extends StatefulWidget {
+  const _PreloadWrapper();
+
+  @override
+  State<_PreloadWrapper> createState() => _PreloadWrapperState();
+}
+
+class _PreloadWrapperState extends State<_PreloadWrapper> {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Avvia il pre-caricamento delle immagini pesanti in background
+    _preloadImages();
+  }
+
+  void _preloadImages() {
+    // Pre-carica le immagini pesanti in background senza bloccare l'UI
+    precacheImage(const AssetImage('assets/images/backgrounds/splashscreen_narratrivia.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/gagofed_logo.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/external_view_background.png'), context);
+    precacheImage(const AssetImage('assets/images/backgrounds/external_view_spaceship.png'), context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Mostra immediatamente la SplashScreen mentre le immagini si caricano in background
+    return const SplashScreen();
   }
 }

@@ -1,8 +1,8 @@
+// lib/screens/hub_navigation/controllers/hub_constants.dart
+
 import 'package:flutter/material.dart';
 
-/// Constants for the hub navigation system
 class HubConstants {
-  // Prevent instantiation
   HubConstants._();
 
   // Animation durations
@@ -24,12 +24,12 @@ class HubConstants {
   static const double selectorBorderRadius = 30.0;
   static const double selectorItemBorderRadius = 8.0;
 
-  // Medium definitions
+  // Medium definitions - AGGIUNTO DATABASE VAULT
   static const List<GameMedium> mediums = [
     GameMedium(
       id: 'videogames',
       name: 'Videogiochi',
-      color: Color(0xFF63FF47), // Neon green
+      color: Color(0xFF63FF47),
       icon: Icons.sports_esports,
       arcPath: 'assets/images/backgrounds/arcs/videogames_arc.png',
       roomPath: 'assets/images/backgrounds/rooms/videogames_room.png',
@@ -37,7 +37,7 @@ class HubConstants {
     GameMedium(
       id: 'books',
       name: 'Libri',
-      color: Color(0xFFFFBF00), // Amber
+      color: Color(0xFFFFBF00),
       icon: Icons.menu_book,
       arcPath: 'assets/images/backgrounds/arcs/books_arc.png',
       roomPath: 'assets/images/backgrounds/rooms/books_room.png',
@@ -45,7 +45,7 @@ class HubConstants {
     GameMedium(
       id: 'comics',
       name: 'Fumetti',
-      color: Color(0xFFFFFF00), // Yellow
+      color: Color(0xFFFFFF00),
       icon: Icons.auto_stories,
       arcPath: 'assets/images/backgrounds/arcs/comics_arc.png',
       roomPath: 'assets/images/backgrounds/rooms/comics_room.png',
@@ -53,7 +53,7 @@ class HubConstants {
     GameMedium(
       id: 'manga',
       name: 'Manga',
-      color: Color(0xFFFF0800), // Candy apple red
+      color: Color(0xFFFF0800),
       icon: Icons.book,
       arcPath: 'assets/images/backgrounds/arcs/manga_arc.png',
       roomPath: 'assets/images/backgrounds/rooms/manga_room.png',
@@ -61,7 +61,7 @@ class HubConstants {
     GameMedium(
       id: 'anime',
       name: 'Anime',
-      color: Color(0xFFFFB7C5), // Cherry blossom pink
+      color: Color(0xFFFFB7C5),
       icon: Icons.play_circle_outline,
       arcPath: 'assets/images/backgrounds/arcs/anime_arc.png',
       roomPath: 'assets/images/backgrounds/rooms/anime_room.png',
@@ -69,7 +69,7 @@ class HubConstants {
     GameMedium(
       id: 'tvseries',
       name: 'Serie TV',
-      color: Color(0xFF007BFF), // Azure
+      color: Color(0xFF007BFF),
       icon: Icons.tv,
       arcPath: 'assets/images/backgrounds/arcs/tvseries_arc.png',
       roomPath: 'assets/images/backgrounds/rooms/tvseries_room.png',
@@ -77,10 +77,20 @@ class HubConstants {
     GameMedium(
       id: 'movies',
       name: 'Film',
-      color: Color(0xFFBD00FF), // Electric purple
+      color: Color(0xFFBD00FF),
       icon: Icons.movie,
       arcPath: 'assets/images/backgrounds/arcs/movie_arc.png',
       roomPath: 'assets/images/backgrounds/rooms/movies_room.png',
+    ),
+    // NUOVO: Database Vault come 8° arco
+    GameMedium(
+      id: 'database_vault',
+      name: 'Database Vault',
+      color: Color(0xFF9C27B0), // Purple
+      icon: Icons.lock,
+      arcPath: 'assets/images/backgrounds/arcs/vault_arc.png',
+      roomPath: '', // Non usa il sistema normale delle room
+      lockedArcPath: 'assets/images/backgrounds/arcs/vault_locked.png', // NUOVO campo
     ),
   ];
 
@@ -88,15 +98,15 @@ class HubConstants {
   static const SpecialRoom trophyHall = SpecialRoom(
     id: 'trophy_hall',
     name: 'Sala Trofei',
-    backgroundPath: 'assets/images/backgrounds/rooms/trophy_hall.png',
-    transitionPath: 'assets/images/backgrounds/rooms/trophyhall_transition.png',
+    backgroundPath: 'assets/images/backgrounds/special_rooms/trophy_hall.png',
+    transitionPath: 'assets/images/backgrounds/special_rooms/trophyhall_transition.png',
   );
 
   static const SpecialRoom controlRoom = SpecialRoom(
     id: 'control_room',
     name: 'Sala Controllo',
-    backgroundPath: 'assets/images/backgrounds/rooms/control_room.png',
-    transitionPath: 'assets/images/backgrounds/rooms/controlroom_transition.png',
+    backgroundPath: 'assets/images/backgrounds/special_rooms/control_room.png',
+    transitionPath: 'assets/images/backgrounds/special_rooms/controlroom_transition.png',
   );
 
   // Transition assets
@@ -111,9 +121,9 @@ class HubConstants {
   static const String routeAnimeRoom = '$routePrefix/anime_room';
   static const String routeTvSeriesRoom = '$routePrefix/tvseries_room';
   static const String routeMoviesRoom = '$routePrefix/movies_room';
+  static const String routeDatabaseVault = '$routePrefix/database_vault'; // NUOVO
 }
 
-/// Game medium model
 class GameMedium {
   final String id;
   final String name;
@@ -121,6 +131,7 @@ class GameMedium {
   final IconData icon;
   final String arcPath;
   final String roomPath;
+  final String? lockedArcPath; // NUOVO: Path per versione locked
 
   const GameMedium({
     required this.id,
@@ -129,10 +140,10 @@ class GameMedium {
     required this.icon,
     required this.arcPath,
     required this.roomPath,
+    this.lockedArcPath,
   });
 }
 
-/// Special room model
 class SpecialRoom {
   final String id;
   final String name;

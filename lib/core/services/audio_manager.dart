@@ -174,6 +174,50 @@ class AudioManager {
     }
   }
 
+  // ===== NUOVI METODI PER IL QUIZ SYSTEM =====
+
+  // Play correct answer sound
+  Future<void> playCorrectAnswer() async {
+    if (_isSfxEnabled) {
+      await _playSfx('assets/sounds/sfx/game/correct_answer.wav');
+    }
+  }
+
+  // Play wrong answer sound
+  Future<void> playWrongAnswer() async {
+    if (_isSfxEnabled) {
+      await _playSfx('assets/sounds/sfx/game/wrong_answer.wav');
+    }
+  }
+
+  // Play timer tick sound
+  Future<void> playTimerTick() async {
+    if (_isSfxEnabled) {
+      await _playSfx('assets/sounds/sfx/game/timer_tick.wav');
+    }
+  }
+
+  // Play timer warning sound
+  Future<void> playTimerWarning() async {
+    if (_isSfxEnabled) {
+      await _playSfx('assets/sounds/sfx/game/timer_warning.wav');
+    }
+  }
+
+  // Play level up sound
+  Future<void> playLevelUp() async {
+    if (_isSfxEnabled) {
+      await _playSfx('assets/sounds/sfx/game/level_up.wav');
+    }
+  }
+
+  // Play achievement unlock sound
+  Future<void> playAchievementUnlock() async {
+    if (_isSfxEnabled) {
+      await _playSfx('assets/sounds/sfx/game/achievement_unlock.wav');
+    }
+  }
+
   Future<void> _playSfx(String assetPath) async {
     if (!_isSfxEnabled) return;
 

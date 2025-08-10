@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/audio_manager.dart';
+import '/core/services/audio_manager.dart';
 
 class SettingsProvider extends ChangeNotifier {
   double _musicVolume = 0.7;
   double _sfxVolume = 0.8;
   double _brightness = 0.8;
   String _languageCode = 'it';
+  bool _useDragControl = false;  // Nuovo: false = accelerometro, true = drag
 
   static const List<String> supportedLanguages = [
     'it',
@@ -21,6 +22,7 @@ class SettingsProvider extends ChangeNotifier {
   double get sfxVolume => _sfxVolume;
   double get brightness => _brightness;
   String get languageCode => _languageCode;
+  bool get useDragControl => _useDragControl;  // Nuovo getter
 
   SettingsProvider() {
     _loadSettings();
@@ -33,6 +35,7 @@ class SettingsProvider extends ChangeNotifier {
       _sfxVolume = (prefs.getDouble('sfxVolume') ?? 0.8).clamp(0.0, 1.0);
       _brightness = (prefs.getDouble('brightness') ?? 0.8).clamp(0.0, 1.0);
       _languageCode = prefs.getString('languageCode') ?? 'it';
+      _useDragControl = prefs.getBool('useDragControl') ?? false;  // Nuovo: carica preferenza
 
       if (!supportedLanguages.contains(_languageCode)) {
         _languageCode = 'it';
@@ -113,6 +116,21 @@ class SettingsProvider extends ChangeNotifier {
     }
   }
 
+  // Nuovo metodo per impostare il controllo panoramico
+  Future<void> setUseDragControl(bool value) async {
+    if (_useDragControl == value) return;
+
+    _useDragControl = value;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('useDragControl', _useDragControl);
+      notifyListeners();
+    } catch (e) {
+      // Continue without saving
+    }
+  }
+
   String getLanguageName(String code) {
     switch (code) {
       case 'it': return 'Italiano';
@@ -132,5 +150,6 @@ class SettingsProvider extends ChangeNotifier {
     await setSfxVolume(0.8);
     await setBrightness(0.8);
     await setLanguageCode('it');
+    await setUseDragControl(false);  // Nuovo: reset anche il controllo panoramico
   }
 }

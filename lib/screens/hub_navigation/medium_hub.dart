@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '/core/services/audio_manager.dart';
 import 'controllers/hub_constants.dart';
 import 'controllers/hub_controller.dart';
 import 'widgets/arc_selector.dart';
@@ -53,6 +54,32 @@ class _MediumHubState extends State<MediumHub> with TickerProviderStateMixin {
 
                   if (controller.isInSpecialRoom)
                     _buildSpecialRoomGestureLayer(controller),
+
+                  // Back button al main menu (sempre visibile quando non in special room)
+                  if (!controller.isInSpecialRoom)
+                    Positioned(
+                      top: 40,
+                      left: 16,
+                      child: SafeArea(
+                        child: IconButton(
+                          onPressed: () async {
+                            await AudioManager().playReturnBack();
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.black.withOpacity(0.5),
+                            padding: const EdgeInsets.all(12),
+                          ),
+                        ),
+                      ),
+                    ),
 
                   if (!controller.isInSpecialRoom)
                     Positioned(
