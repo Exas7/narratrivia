@@ -36,17 +36,30 @@ class QuestionCard extends StatelessWidget {
   }
 
   String _getDifficultyEmoji() {
-    switch (question.difficulty) {
-      case QuestionDifficulty.veryEasy:
+    // Usa il valore numerico della difficoltà (1, 2, 3)
+    switch (question.difficulty.value) {
+      case 1:
         return '😊';
-      case QuestionDifficulty.easy:
-        return '🙂';
-      case QuestionDifficulty.medium:
-        return '😐';
-      case QuestionDifficulty.hard:
-        return '😰';
-      case QuestionDifficulty.veryHard:
+      case 2:
+        return '🤔';
+      case 3:
         return '🔥';
+      default:
+        return '🤔';
+    }
+  }
+
+  Color _getDifficultyColor() {
+    // Usa il valore numerico della difficoltà (1, 2, 3)
+    switch (question.difficulty.value) {
+      case 1:
+        return Colors.green;
+      case 2:
+        return Colors.orange;
+      case 3:
+        return Colors.red;
+      default:
+        return Colors.orange;
     }
   }
 
@@ -100,21 +113,34 @@ class QuestionCard extends StatelessWidget {
               ),
 
               // Difficulty indicator
-              Row(
-                children: [
-                  Text(
-                    question.difficulty.displayName,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _getDifficultyColor().withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _getDifficultyColor().withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      question.difficulty.displayName,
+                      style: TextStyle(
+                        color: _getDifficultyColor(),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _getDifficultyEmoji(),
-                    style: const TextStyle(fontSize: 20),
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    Text(
+                      _getDifficultyEmoji(),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -146,7 +172,7 @@ class QuestionCard extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // Question text
+          // Question text - Usa il testo localizzato se disponibile
           Text(
             question.text,
             style: const TextStyle(
@@ -157,6 +183,31 @@ class QuestionCard extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
+
+          // Opera badge (se presente)
+          if (question.opera != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.purple.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.purple.withOpacity(0.4),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                question.opera!.replaceAll('_', ' ').toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.purple,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ],
 
           // Image if present (for ugly images mode)
           if (question.imageUrl != null) ...[
@@ -212,6 +263,43 @@ class QuestionCard extends StatelessWidget {
                         color: Colors.amber[100],
                         fontSize: 14,
                         fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Explanation (dopo aver risposto, se disponibile)
+          if (question.explanation != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.blue.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.blue[400],
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      question.explanation!,
+                      style: TextStyle(
+                        color: Colors.blue[100],
+                        fontSize: 13,
+                        height: 1.4,
                       ),
                     ),
                   ),

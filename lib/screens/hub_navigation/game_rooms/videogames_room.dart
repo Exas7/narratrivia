@@ -10,6 +10,7 @@ import '../../../core/services/audio_manager.dart';
 import '../../../core/game_widgets/history_panel.dart';
 import '../../../core/game_widgets/medium_settings_panel.dart';
 import '../../../core/game_widgets/quiz_overlay.dart';
+import '../../../core/game_widgets/result_overlay.dart';
 import '../widgets/panoramic_rooms_view.dart';
 
 class VideogamesRoom extends StatelessWidget {
@@ -35,6 +36,7 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
   bool _showGameButtons = false;
   bool _showHistoryPanel = false;
   bool _showSettingsPanel = false;
+  bool _showResultOverlay = false;
 
   @override
   void initState() {
@@ -45,7 +47,7 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
     });
   }
 
-  void _startGame(BuildContext context, QuestionType questionType) async {
+  void _startGame(BuildContext context, QuestionType questionType, GameMode gameMode) async {
     final quizController = context.read<QuizController>();
 
     // Nascondi i pulsanti prima di iniziare
@@ -53,11 +55,24 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
       _showGameButtons = false;
     });
 
-    // Avvia il quiz
-    await quizController.startQuiz(
+    // Avvia il quiz con la modalità selezionata
+    final success = await quizController.startQuiz(
       medium: MediumType.videogames,
       questionType: questionType,
+      gameMode: gameMode,
     );
+
+    if (!success) {
+      // Mostra errore se il quiz non si avvia
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(quizController.errorMessage ?? 'Errore nel caricamento del quiz'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _closeQuizOverlay(BuildContext context) {
@@ -65,6 +80,36 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
     quizController.endSession();
     setState(() {
       _showGameButtons = false;
+      _showResultOverlay = false;
+    });
+  }
+
+  void _handleQuizComplete(BuildContext context) {
+    setState(() {
+      _showResultOverlay = true;
+    });
+  }
+
+  void _handleReplay(BuildContext context) {
+    final quizController = context.read<QuizController>();
+    setState(() {
+      _showResultOverlay = false;
+    });
+    quizController.replayQuiz();
+  }
+
+  void _handleContinue(BuildContext context) {
+    setState(() {
+      _showResultOverlay = false;
+    });
+    // Qui potresti navigare a un'altra schermata o mostrare altre opzioni
+  }
+
+  void _handleExit(BuildContext context) {
+    final quizController = context.read<QuizController>();
+    quizController.endSession();
+    setState(() {
+      _showResultOverlay = false;
     });
   }
 
@@ -78,6 +123,15 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
       backgroundColor: Colors.black,
       body: Consumer<QuizController>(
         builder: (context, controller, child) {
+          // Controlla se il quiz è completato
+          if (controller.currentSession != null &&
+              controller.currentSession!.isComplete &&
+              !_showResultOverlay) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _handleQuizComplete(context);
+            });
+          }
+
           return Stack(
             children: [
               // 1. Vista Panoramica con hotspot
@@ -93,7 +147,7 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
               _buildRoomUI(context, mediumColor),
 
               // 3. Pannelli overlay condizionali
-              if (_showGameButtons && controller.currentSession == null)
+              if (_showGameButtons && controller.currentSession == null && !_showResultOverlay)
                 _buildGameModeSelector(context, mediumColor),
 
               if (_showHistoryPanel)
@@ -102,8 +156,8 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
               if (_showSettingsPanel)
                 _buildSettingsOverlay(context, mediumColor),
 
-              // 4. Quiz Overlay con dismissibile
-              if (controller.currentSession != null)
+              // 4. Quiz Overlay
+              if (controller.currentSession != null && !controller.currentSession!.isComplete)
                 GestureDetector(
                   onTap: () {
                     // Tap fuori chiude il quiz
@@ -132,6 +186,15 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
                     color: Colors.transparent,
                     child: QuizOverlay(controller: controller),
                   ),
+                ),
+
+              // 5. Result Overlay
+              if (_showResultOverlay && controller.currentSession != null)
+                ResultOverlay(
+                  session: controller.currentSession!,
+                  onContinue: () => _handleContinue(context),
+                  onReplay: () => _handleReplay(context),
+                  onExit: () => _handleExit(context),
                 ),
             ],
           );
@@ -304,36 +367,43 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
                     ],
                   ),
                   const SizedBox(height: 20),
+
+                  // VERO/FALSO - Classic Mode
                   _buildModeButton(
                     context,
-                    'Vero / Falso',
-                    '15 secondi per risposta',
+                    'Vero / Falso - Classic',
+                    '15 domande (5+5+5), 20 sec per domanda',
                     QuestionType.truefalse,
+                    GameMode.classic,
                     mediumColor,
+                    Icons.check_circle_outline,
                   ),
                   const SizedBox(height: 12),
+
+                  // SCELTA MULTIPLA - Classic Mode
                   _buildModeButton(
                     context,
-                    'Scelta Multipla',
-                    '20 secondi per risposta',
+                    'Scelta Multipla - Classic',
+                    '15 domande (5+5+5), 60 sec per domanda',
                     QuestionType.multiple,
+                    GameMode.classic,
                     mediumColor,
+                    Icons.grid_view_rounded,
                   ),
-                  const SizedBox(height: 12),
-                  _buildModeButton(
-                    context,
-                    'Immagini Brutte',
-                    '25 secondi per risposta',
-                    QuestionType.uglyImages,
-                    mediumColor,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildModeButton(
-                    context,
-                    'Descrizioni Fuorvianti',
-                    '30 secondi per risposta',
-                    QuestionType.misleading,
-                    mediumColor,
+
+                  // Divider per future modalità
+                  const SizedBox(height: 20),
+                  const Divider(color: Colors.white24),
+                  const SizedBox(height: 8),
+
+                  // Placeholder per future modalità
+                  Text(
+                    'Altre modalità in arrivo...',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.4),
+                      fontSize: 14,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ],
               ),
@@ -349,12 +419,14 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
       String title,
       String subtitle,
       QuestionType type,
+      GameMode mode,
       Color color,
+      IconData icon,
       ) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: () => _startGame(context, type),
+        onPressed: () => _startGame(context, type, mode),
         style: ElevatedButton.styleFrom(
           backgroundColor: color.withOpacity(0.2),
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
@@ -363,24 +435,41 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
             side: BorderSide(color: color.withOpacity(0.5)),
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+            Icon(
+              icon,
+              color: color,
+              size: 28,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
-                fontSize: 12,
-              ),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: color.withOpacity(0.7),
+              size: 20,
             ),
           ],
         ),

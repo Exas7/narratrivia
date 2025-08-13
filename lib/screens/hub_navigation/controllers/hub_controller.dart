@@ -16,7 +16,7 @@ class HubController extends ChangeNotifier {
   bool _isInSpecialRoom = false;
   String _currentSpecialRoom = '';
   bool lastTransitionWasHorizontal = true;
-  bool _isDatabaseVaultUnlocked = false; // NUOVO
+  bool _isDatabaseVaultUnlocked = false;
 
   // Animation controllers
   AnimationController? _transitionAnimationController;
@@ -33,12 +33,12 @@ class HubController extends ChangeNotifier {
   GameMedium get currentMedium => HubConstants.mediums[_currentArcIndex];
   Animation<double>? get transitionAnimation => _transitionAnimation;
   GestureController get gestureController => _gestureController;
-  bool get isDatabaseVaultUnlocked => _isDatabaseVaultUnlocked; // NUOVO
+  bool get isDatabaseVaultUnlocked => _isDatabaseVaultUnlocked;
 
   // NUOVO: Check Database Vault unlock status
   Future<void> checkDatabaseVaultStatus() async {
     // Per ora hardcoded, poi userà ProgressionController
-    _isDatabaseVaultUnlocked = false; // Cambia in true per testare sbloccato
+    _isDatabaseVaultUnlocked = true; // Cambia in true per testare sbloccato
     notifyListeners();
   }
 
@@ -62,7 +62,7 @@ class HubController extends ChangeNotifier {
       }
     });
 
-    checkDatabaseVaultStatus(); // NUOVO
+    checkDatabaseVaultStatus();
   }
 
   /// Handle drag start
@@ -247,7 +247,7 @@ class HubController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Get background path for the current state - MODIFICATO
+  /// Get background path for the current state
   String getCurrentBackgroundPath() {
     if (_isTransitioning && _isInSpecialRoom) {
       return HubConstants.mediums[_currentArcIndex].arcPath;

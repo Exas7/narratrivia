@@ -25,38 +25,97 @@ class FirestoreService {
     required MediumType medium,
     QuestionType? type,
     QuestionDifficulty? difficulty,
+    String? opera,  // NUOVO: parametro per filtrare per opera
     int limit = 10,
-    String language = 'it',
+    bool randomize = true,  // NUOVO: per randomizzare le domande
   }) async {
     try {
       Query query = _questionsCollection;
 
-      // Filter by medium
-      query = query.where('medium', isEqualTo: medium.name);
+      // Filter by medium (nel DB è salvato come stringa diretta, non medium.name)
+      query = query.where('medium', isEqualTo: 'videogames');  // Per ora solo videogames
 
       // Filter by type if specified
       if (type != null) {
-        query = query.where('type', isEqualTo: type.name);
+        // Nel database è 'truefalse' o 'multiplechoice'
+        String dbType = type == QuestionType.truefalse ? 'truefalse' :
+        type == QuestionType.multiple ? 'multiplechoice' :
+        type.name;
+        query = query.where('type', isEqualTo: dbType);
       }
 
-      // Filter by difficulty if specified
+      // Filter by difficulty if specified (nel DB è numero diretto 1, 2, 3)
       if (difficulty != null) {
         query = query.where('difficulty', isEqualTo: difficulty.value);
       }
 
-      // Filter by language
-      query = query.where('metadata.language', isEqualTo: language);
+      // Filter by opera if specified (es: 'dragon_quest_8')
+      if (opera != null && opera.isNotEmpty) {
+        query = query.where('opera', isEqualTo: opera);
+      }
 
-      // Limit results
-      query = query.limit(limit);
+      // Filter by active status
+      query = query.where('metadata.isActive', isEqualTo: true);
+
+      // Se vogliamo randomizzare, prendiamo più domande e le mescoliamo
+      if (randomize) {
+        query = query.limit(limit * 3);  // Prendi il triplo per avere varietà
+      } else {
+        query = query.limit(limit);
+      }
 
       final snapshot = await query.get();
 
-      return snapshot.docs
-          .map((doc) => Question.fromFirestore(doc))
-          .toList();
+      print('Firestore query executed. Documents found: ${snapshot.docs.length}');
+
+      // Converti i documenti in oggetti Question
+      List<Question> questions = [];
+      for (var doc in snapshot.docs) {
+        try {
+          final question = Question.fromFirestore(doc);
+          questions.add(question);
+          print('Loaded question: ${question.text.substring(0, 50 < question.text.length ? 50 : question.text.length)}...');
+        } catch (e) {
+          print('Error parsing question ${doc.id}: $e');
+          print('Document data: ${doc.data()}');
+        }
+      }
+
+      // Se abbiamo bisogno di randomizzare, mescoliamo e prendiamo solo il numero richiesto
+      if (randomize && questions.length > limit) {
+        questions.shuffle();
+        questions = questions.take(limit).toList();
+      }
+
+      print('Returning ${questions.length} questions');
+      return questions;
+
     } catch (e) {
-      print('Error fetching questions: $e');
+      print('Error fetching questions from Firestore: $e');
+      print('Stack trace: ${StackTrace.current}');
+      return [];
+    }
+  }
+
+  // Get all available operas for a medium
+  Future<List<String>> getAvailableOperas(MediumType medium) async {
+    try {
+      final snapshot = await _questionsCollection
+          .where('medium', isEqualTo: medium == MediumType.videogames ? 'videogames' : medium.name)
+          .where('metadata.isActive', isEqualTo: true)
+          .get();
+
+      Set<String> operas = {};
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data['opera'] != null) {
+          operas.add(data['opera']);
+        }
+      }
+
+      return operas.toList()..sort();
+    } catch (e) {
+      print('Error fetching operas: $e');
       return [];
     }
   }
@@ -334,12 +393,47 @@ class FirestoreService {
     }
   }
 
-  // --- BATCH OPERATIONS ---
+  // --- TEST CONNECTION ---
 
-  // Initialize database with sample questions (for testing)
-  Future<void> initializeSampleQuestions() async {
-    // This would be called once to populate the database with initial questions
-    // Implementation would add multiple questions for each medium and type
-    print('Sample questions initialization would go here');
+  // Test Firebase connection and queries
+  Future<void> testFirebaseConnection() async {
+    try {
+      print('Testing Firebase connection...');
+
+      // Test 1: Basic connection
+      final testQuery = await _questionsCollection.limit(1).get();
+      print('✅ Firebase connected! Found ${testQuery.docs.length} test document(s)');
+
+      // Test 2: Count total questions
+      final allQuestions = await _questionsCollection.get();
+      print('📊 Total questions in database: ${allQuestions.docs.length}');
+
+      // Test 3: Count by type
+      final trueFalse = await _questionsCollection
+          .where('type', isEqualTo: 'truefalse')
+          .get();
+      final multiple = await _questionsCollection
+          .where('type', isEqualTo: 'multiplechoice')
+          .get();
+
+      print('📝 True/False questions: ${trueFalse.docs.length}');
+      print('📝 Multiple choice questions: ${multiple.docs.length}');
+
+      // Test 4: Check first question structure
+      if (allQuestions.docs.isNotEmpty) {
+        final firstDoc = allQuestions.docs.first;
+        final data = firstDoc.data() as Map<String, dynamic>;
+        print('🔍 Sample question structure:');
+        print('   - Type: ${data['type']}');
+        print('   - Medium: ${data['medium']}');
+        print('   - Opera: ${data['opera']}');
+        print('   - Difficulty: ${data['difficulty']}');
+        print('   - Has statement: ${data['statement'] != null}');
+        print('   - Has question: ${data['question'] != null}');
+      }
+
+    } catch (e) {
+      print('❌ Firebase connection error: $e');
+    }
   }
 }

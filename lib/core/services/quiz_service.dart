@@ -11,7 +11,7 @@ class QuizService {
   final Random _random = Random();
 
   // Cache per domande locali (per offline mode)
-  final Map<MediumType, List<Question>> _questionsCache = {};
+  final Map<String, List<Question>> _questionsCache = {};
 
   // Sessione corrente
   QuizSession? _currentSession;
@@ -19,272 +19,134 @@ class QuizService {
   // Get current session
   QuizSession? get currentSession => _currentSession;
 
-  // Start a new quiz session
+  // Start a new quiz session (metodo legacy per compatibilità)
   Future<QuizSession> startQuizSession({
     required MediumType medium,
     required QuestionType questionType,
     int numberOfQuestions = 10,
     QuestionDifficulty? difficulty,
+    String? opera,
   }) async {
+    print('Starting quiz session - Medium: $medium, Type: $questionType, Questions: $numberOfQuestions');
+
     // Generate session ID
     final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
 
-    // Fetch questions
+    // Test Firebase connection first
+    await _firestoreService.testFirebaseConnection();
+
+    // Fetch questions from Firestore
     List<Question> questions = await _fetchQuestions(
       medium: medium,
       questionType: questionType,
       difficulty: difficulty,
+      opera: opera,
       limit: numberOfQuestions,
     );
 
-    // If not enough questions from database, use hardcoded ones
-    if (questions.length < numberOfQuestions) {
-      questions.addAll(_getHardcodedQuestions(
-        medium: medium,
-        questionType: questionType,
-        needed: numberOfQuestions - questions.length,
-      ));
+    // Se non abbiamo abbastanza domande, notifica l'utente
+    if (questions.isEmpty) {
+      print('⚠️ ATTENZIONE: Nessuna domanda trovata nel database!');
+      throw Exception('Nessuna domanda disponibile per questa configurazione. Verifica che il database contenga domande.');
     }
 
-    // Shuffle questions for variety
-    questions.shuffle(_random);
+    if (questions.length < numberOfQuestions) {
+      print('⚠️ Trovate solo ${questions.length} domande su $numberOfQuestions richieste');
+    }
 
     // Create session
     _currentSession = QuizSession(
       sessionId: sessionId,
       medium: medium,
       questionType: questionType,
-      questions: questions.take(numberOfQuestions).toList(),
+      questions: questions,
     );
 
+    print('✅ Quiz session created with ${questions.length} questions');
     return _currentSession!;
   }
 
-  // Fetch questions from Firestore
+  // Nuovo metodo per il fetch diretto delle domande con controllo difficoltà
+  Future<List<Question>> fetchQuestionsDirectly({
+    required MediumType medium,
+    required QuestionType questionType,
+    QuestionDifficulty? difficulty,
+    String? opera,
+    int limit = 10,
+  }) async {
+    try {
+      print('🎯 Fetching questions directly - Type: ${questionType.name}, Difficulty: ${difficulty?.name ?? "all"}, Limit: $limit');
+
+      // Fetch from Firestore con i parametri specifici
+      final questions = await _firestoreService.getQuestions(
+        medium: medium,
+        type: questionType,
+        difficulty: difficulty,
+        opera: opera,
+        limit: limit,
+        randomize: true,
+      );
+
+      if (questions.isEmpty) {
+        print('❌ No questions found for difficulty: ${difficulty?.name}');
+      } else {
+        print('✅ Found ${questions.length} questions for difficulty: ${difficulty?.name}');
+      }
+
+      return questions;
+
+    } catch (e) {
+      print('❌ Error in fetchQuestionsDirectly: $e');
+      return [];
+    }
+  }
+
+  // Fetch questions from Firestore (metodo privato interno)
   Future<List<Question>> _fetchQuestions({
     required MediumType medium,
     required QuestionType questionType,
     QuestionDifficulty? difficulty,
+    String? opera,
     required int limit,
   }) async {
     try {
-      // Check cache first
-      if (_questionsCache[medium] != null && _questionsCache[medium]!.isNotEmpty) {
-        return _filterQuestions(
-          _questionsCache[medium]!,
-          questionType: questionType,
-          difficulty: difficulty,
-          limit: limit,
-        );
+      // Creiamo una chiave cache unica
+      final cacheKey = '${medium.name}_${questionType.name}_${difficulty?.name ?? "all"}_${opera ?? "all"}';
+
+      // Check cache first (solo se abbiamo già domande in cache)
+      if (_questionsCache.containsKey(cacheKey) && _questionsCache[cacheKey]!.isNotEmpty) {
+        print('📦 Using cached questions for $cacheKey');
+        final cachedQuestions = List<Question>.from(_questionsCache[cacheKey]!);
+        cachedQuestions.shuffle(_random);
+        return cachedQuestions.take(limit).toList();
       }
+
+      print('🔍 Fetching questions from Firestore...');
 
       // Fetch from Firestore
       final questions = await _firestoreService.getQuestions(
         medium: medium,
         type: questionType,
         difficulty: difficulty,
-        limit: limit * 2, // Fetch more for variety
-      );
-
-      // Update cache
-      _questionsCache[medium] = questions;
-
-      return _filterQuestions(
-        questions,
-        questionType: questionType,
-        difficulty: difficulty,
+        opera: opera,
         limit: limit,
+        randomize: true,
       );
+
+      if (questions.isNotEmpty) {
+        // Update cache
+        _questionsCache[cacheKey] = questions;
+        print('✅ Fetched ${questions.length} questions from Firestore');
+      } else {
+        print('❌ No questions found in Firestore for this configuration');
+      }
+
+      return questions;
+
     } catch (e) {
-      // If error, return empty list (will use hardcoded)
-      return [];
+      print('❌ Error fetching questions: $e');
+      throw Exception('Errore nel caricamento delle domande: $e');
     }
-  }
-
-  // Filter questions based on criteria
-  List<Question> _filterQuestions(
-      List<Question> questions, {
-        required QuestionType questionType,
-        QuestionDifficulty? difficulty,
-        required int limit,
-      }) {
-    var filtered = questions.where((q) => q.type == questionType);
-
-    if (difficulty != null) {
-      filtered = filtered.where((q) => q.difficulty == difficulty);
-    }
-
-    return filtered.take(limit).toList();
-  }
-
-  // Get hardcoded questions for testing
-  List<Question> _getHardcodedQuestions({
-    required MediumType medium,
-    required QuestionType questionType,
-    required int needed,
-  }) {
-    final questions = <Question>[];
-
-    for (int i = 0; i < needed; i++) {
-      questions.add(_generateHardcodedQuestion(
-        medium: medium,
-        type: questionType,
-        index: i,
-      ));
-    }
-
-    return questions;
-  }
-
-  // Generate a single hardcoded question
-  Question _generateHardcodedQuestion({
-    required MediumType medium,
-    required QuestionType type,
-    required int index,
-  }) {
-    switch (type) {
-      case QuestionType.truefalse:
-        return _generateTrueFalseQuestion(medium, index);
-      case QuestionType.multiple:
-        return _generateMultipleChoiceQuestion(medium, index);
-      case QuestionType.uglyImages:
-        return _generateUglyImagesQuestion(medium, index);
-      case QuestionType.misleading:
-        return _generateMisleadingQuestion(medium, index);
-    }
-  }
-
-  // Generate True/False question
-  Question _generateTrueFalseQuestion(MediumType medium, int index) {
-    final questions = {
-      MediumType.videogames: [
-        'Mario è il protagonista di Super Mario Bros.',
-        'Sonic è un personaggio Nintendo.',
-        'Minecraft è stato creato da Mojang.',
-        'Fortnite è un gioco single-player.',
-        'The Legend of Zelda è ambientato a Hyrule.',
-      ],
-      MediumType.books: [
-        'Harry Potter è stato scritto da J.K. Rowling.',
-        'Il Signore degli Anelli è ambientato nella Terra di Mezzo.',
-        '1984 è stato scritto da George Orwell.',
-        'Romeo e Giulietta è una commedia.',
-        'Don Chisciotte è stato scritto da Cervantes.',
-      ],
-      MediumType.movies: [
-        'Titanic ha vinto l\'Oscar come miglior film.',
-        'Star Wars è stato diretto da Steven Spielberg.',
-        'Il Padrino è basato su un romanzo.',
-        'Avatar è il film con maggior incasso di sempre.',
-        'Pulp Fiction è diretto da Quentin Tarantino.',
-      ],
-    };
-
-    final answers = {
-      MediumType.videogames: [true, false, true, false, true],
-      MediumType.books: [true, true, true, false, true],
-      MediumType.movies: [true, false, true, true, true],
-    };
-
-    final mediumQuestions = questions[medium] ?? questions[MediumType.videogames]!;
-    final mediumAnswers = answers[medium] ?? answers[MediumType.videogames]!;
-
-    final questionIndex = index % mediumQuestions.length;
-
-    return Question(
-      id: 'hardcoded_tf_${medium.name}_$index',
-      text: mediumQuestions[questionIndex],
-      medium: medium,
-      difficulty: QuestionDifficulty.medium,
-      type: QuestionType.truefalse,
-      correctAnswer: mediumAnswers[questionIndex],
-      options: [true, false],
-      metadata: {'language': 'it', 'isHardcoded': true},
-    );
-  }
-
-  // Generate Multiple Choice question
-  Question _generateMultipleChoiceQuestion(MediumType medium, int index) {
-    final questions = {
-      MediumType.videogames: [
-        {
-          'text': 'Chi è il protagonista di The Witcher 3?',
-          'correct': 'Geralt di Rivia',
-          'options': ['Geralt di Rivia', 'Ezio Auditore', 'Nathan Drake', 'Kratos'],
-        },
-        {
-          'text': 'In quale anno è uscito il primo Super Mario Bros?',
-          'correct': '1985',
-          'options': ['1983', '1985', '1987', '1990'],
-        },
-      ],
-      MediumType.books: [
-        {
-          'text': 'Chi ha scritto "Il Nome della Rosa"?',
-          'correct': 'Umberto Eco',
-          'options': ['Umberto Eco', 'Italo Calvino', 'Primo Levi', 'Alberto Moravia'],
-        },
-        {
-          'text': 'Quale di questi NON è un romanzo di Agatha Christie?',
-          'correct': 'Il Codice Da Vinci',
-          'options': ['Dieci Piccoli Indiani', 'Assassinio sull\'Orient Express', 'Il Codice Da Vinci', 'Poirot a Styles Court'],
-        },
-      ],
-      MediumType.movies: [
-        {
-          'text': 'Chi ha diretto "Inception"?',
-          'correct': 'Christopher Nolan',
-          'options': ['Christopher Nolan', 'Denis Villeneuve', 'David Fincher', 'Ridley Scott'],
-        },
-        {
-          'text': 'Quale attore interpreta Iron Man nel MCU?',
-          'correct': 'Robert Downey Jr.',
-          'options': ['Chris Evans', 'Robert Downey Jr.', 'Chris Hemsworth', 'Mark Ruffalo'],
-        },
-      ],
-    };
-
-    final mediumQuestions = questions[medium] ?? questions[MediumType.videogames]!;
-    final questionData = mediumQuestions[index % mediumQuestions.length];
-
-    return Question(
-      id: 'hardcoded_mc_${medium.name}_$index',
-      text: questionData['text'] as String,
-      medium: medium,
-      difficulty: QuestionDifficulty.medium,
-      type: QuestionType.multiple,
-      correctAnswer: questionData['correct'],
-      options: questionData['options'] as List<dynamic>,
-      metadata: {'language': 'it', 'isHardcoded': true},
-    );
-  }
-
-  // Generate Ugly Images question (text-based for now)
-  Question _generateUglyImagesQuestion(MediumType medium, int index) {
-    return Question(
-      id: 'hardcoded_ui_${medium.name}_$index',
-      text: 'Identifica il personaggio dalla descrizione mal disegnata: Un idraulico baffuto con cappello rosso che salta sui funghi.',
-      medium: medium,
-      difficulty: QuestionDifficulty.easy,
-      type: QuestionType.uglyImages,
-      correctAnswer: 'Mario',
-      options: ['Mario', 'Luigi', 'Wario', 'Yoshi'],
-      metadata: {'language': 'it', 'isHardcoded': true},
-    );
-  }
-
-  // Generate Misleading Description question
-  Question _generateMisleadingQuestion(MediumType medium, int index) {
-    return Question(
-      id: 'hardcoded_md_${medium.name}_$index',
-      text: 'Un tizio verde molto arrabbiato che diventa più forte quando si arrabbia ancora di più. Odia i pantaloni.',
-      medium: medium,
-      difficulty: QuestionDifficulty.hard,
-      type: QuestionType.misleading,
-      correctAnswer: 'Hulk',
-      options: ['Hulk', 'Shrek', 'Piccolo', 'Green Lantern'],
-      metadata: {'language': 'it', 'isHardcoded': true},
-    );
   }
 
   // Submit answer for current question
@@ -299,10 +161,35 @@ class QuizService {
     }
 
     // Check if answer is correct
-    final isCorrect = answer == currentQuestion.correctAnswer;
+    bool isCorrect = false;
 
-    // Calculate response time (for now, use a random value)
-    // In real implementation, this would be tracked by a timer
+    // Per true/false, confronta booleani
+    if (currentQuestion.type == QuestionType.truefalse) {
+      isCorrect = answer == currentQuestion.correctAnswer;
+      print('TF Answer check: User answered $answer, correct was ${currentQuestion.correctAnswer}, result: $isCorrect');
+    }
+    // Per multiple choice, confronta indici o stringhe
+    else if (currentQuestion.type == QuestionType.multiple) {
+      // Se correctAnswer è un indice numerico
+      if (currentQuestion.correctAnswer is int) {
+        if (answer is int) {
+          isCorrect = answer == currentQuestion.correctAnswer;
+        } else if (answer is String) {
+          // Confronta con l'opzione all'indice
+          final correctIndex = currentQuestion.correctAnswer as int;
+          if (correctIndex < currentQuestion.options.length) {
+            isCorrect = answer == currentQuestion.options[correctIndex];
+          }
+        }
+      }
+      // Se correctAnswer è una stringa
+      else if (currentQuestion.correctAnswer is String) {
+        isCorrect = answer.toString() == currentQuestion.correctAnswer;
+      }
+      print('MC Answer check: User answered $answer, correct was ${currentQuestion.correctAnswer}, result: $isCorrect');
+    }
+
+    // Calculate response time (per ora uso un valore casuale, in produzione sarebbe tracciato)
     final responseTime = 5.0 + _random.nextDouble() * 10;
 
     // Submit to session
@@ -312,12 +199,14 @@ class QuizService {
       responseTime: responseTime,
     );
 
+    print('Answer submitted - Correct: $isCorrect, Progress: ${_currentSession!.currentQuestionIndex}/${_currentSession!.totalQuestions}');
     return isCorrect;
   }
 
   // Skip current question
   void skipCurrentQuestion() {
     _currentSession?.skipQuestion();
+    print('Question skipped - Progress: ${_currentSession?.currentQuestionIndex}/${_currentSession?.totalQuestions}');
   }
 
   // End current session
@@ -329,10 +218,40 @@ class QuizService {
 
     // Clear current session
     _currentSession = null;
+    print('Session ended and saved');
   }
 
   // Clear questions cache
   void clearCache() {
     _questionsCache.clear();
+    print('🗑️ Questions cache cleared');
+  }
+
+  // Get available operas for a medium
+  Future<List<String>> getAvailableOperas(MediumType medium) async {
+    return await _firestoreService.getAvailableOperas(medium);
+  }
+
+  // Get all questions for a medium (for Zen mode)
+  Future<List<Question>> getAllQuestionsForMedium(MediumType medium) async {
+    try {
+      print('📚 Fetching all questions for medium: ${medium.name}');
+
+      // Fetch all available questions
+      final questions = await _firestoreService.getQuestions(
+        medium: medium,
+        type: null,  // Tutti i tipi
+        difficulty: null,  // Tutte le difficoltà
+        limit: 200,  // Limite alto per prendere tutte
+        randomize: true,
+      );
+
+      print('✅ Found ${questions.length} total questions for ${medium.name}');
+      return questions;
+
+    } catch (e) {
+      print('❌ Error fetching all questions: $e');
+      return [];
+    }
   }
 }

@@ -1,4 +1,4 @@
-// lib/controllers/quiz_controller.dart
+// lib/core/controllers/quiz_controller.dart
 
 import 'package:flutter/material.dart';
 import '/core/models/questions.dart';
@@ -8,6 +8,14 @@ import '/core/services/quiz_service.dart';
 import '/core/services/firestore_service.dart';
 import '/core/services/mascot_service.dart';
 import 'progression_controller.dart';
+
+// Modalità di gioco disponibili
+enum GameMode {
+  classic,      // Modalità standard
+  timeAttack,   // A tempo con moltiplicatori
+  liar,         // Il bugiardo (invertito)
+  zen,          // Senza timer/punti
+}
 
 class QuizController extends ChangeNotifier {
   final QuizService _quizService = QuizService();
@@ -22,6 +30,13 @@ class QuizController extends ChangeNotifier {
   DateTime? _questionStartTime;
   int _correctStreak = 0;
 
+  // Modalità di gioco corrente
+  GameMode _currentGameMode = GameMode.classic;
+
+  // Per gestire il loop delle domande in Time Attack
+  List<Question> _allQuestionsForLoop = [];
+  int _loopIndex = 0;
+
   // Settings for current medium
   Map<String, dynamic> _mediumSettings = {};
 
@@ -32,6 +47,7 @@ class QuizController extends ChangeNotifier {
   Question? get currentQuestion => _currentSession?.currentQuestion;
   int get correctStreak => _correctStreak;
   Map<String, dynamic> get mediumSettings => _mediumSettings;
+  GameMode get currentGameMode => _currentGameMode;
 
   // Initialize controller
   Future<void> initialize(String userId) async {
@@ -41,10 +57,9 @@ class QuizController extends ChangeNotifier {
 
   // Load medium settings
   Future<void> loadMediumSettings(MediumType medium) async {
-    // Load from SharedPreferences or use defaults
     _mediumSettings = {
       'difficulty': QuestionDifficulty.medium,
-      'numberOfQuestions': 10,
+      'numberOfQuestions': 15,  // Classic mode default
       'enableTimer': true,
       'showHints': false,
       'enabledModes': {
@@ -60,45 +75,148 @@ class QuizController extends ChangeNotifier {
   // Update medium settings
   void updateMediumSettings(Map<String, dynamic> settings) {
     _mediumSettings = settings;
-    // Save to SharedPreferences
     notifyListeners();
   }
 
-  // Start a new quiz
+  // Start a new quiz with specific game mode
   Future<bool> startQuiz({
     required MediumType medium,
     required QuestionType questionType,
+    GameMode gameMode = GameMode.classic,
   }) async {
     _isLoading = true;
     _errorMessage = null;
     _correctStreak = 0;
+    _currentGameMode = gameMode;
+    _loopIndex = 0;
     notifyListeners();
 
     try {
-      // Get settings
-      final numberOfQuestions = _mediumSettings['numberOfQuestions'] ?? 10;
-      final difficulty = _mediumSettings['difficulty'] as QuestionDifficulty?;
-
       // Check if this is first quiz
       final firstQuizMessage = await _mascotService.checkFirstQuiz();
       if (firstQuizMessage != null) {
         // Show mascot message (handled by UI)
       }
 
-      // Start quiz session
-      _currentSession = await _quizService.startQuizSession(
-        medium: medium,
-        questionType: questionType,
-        numberOfQuestions: numberOfQuestions,
-        difficulty: difficulty,
-      );
+      // Determina il numero di domande basato sulla modalità
+      int numberOfQuestions = _getQuestionsCountForMode(gameMode, questionType);
 
-      // Start timer for first question
-      _questionStartTime = DateTime.now();
+      // Per Classic Mode, dobbiamo caricare 5 domande per difficoltà
+      List<Question> questions = [];
 
-      _isLoading = false;
-      notifyListeners();
-      return true;
+      if (gameMode == GameMode.classic && questionType == QuestionType.truefalse) {
+        // Classic TF: 5 facili + 5 medie + 5 difficili
+        print('Loading questions for Classic TF mode...');
+
+        // Carica 5 domande facili
+        final easyQuestions = await _quizService.fetchQuestionsDirectly(
+          medium: medium,
+          questionType: questionType,
+          difficulty: QuestionDifficulty.easy,
+          limit: 5,
+        );
+
+        // Carica 5 domande medie
+        final mediumQuestions = await _quizService.fetchQuestionsDirectly(
+          medium: medium,
+          questionType: questionType,
+          difficulty: QuestionDifficulty.medium,
+          limit: 5,
+        );
+
+        // Carica 5 domande difficili
+        final hardQuestions = await _quizService.fetchQuestionsDirectly(
+          medium: medium,
+          questionType: questionType,
+          difficulty: QuestionDifficulty.hard,
+          limit: 5,
+        );
+
+        // Combina tutte le domande nell'ordine: facili, medie, difficili
+        questions = [...easyQuestions, ...mediumQuestions, ...hardQuestions];
+
+        print('Loaded ${questions.length} questions total (${easyQuestions.length} easy, ${mediumQuestions.length} medium, ${hardQuestions.length} hard)');
+
+        // Se non abbiamo abbastanza domande, usa quelle disponibili
+        if (questions.length < 15) {
+          print('⚠️ Only ${questions.length} questions available, will loop if needed');
+          _allQuestionsForLoop = List.from(questions);
+        }
+
+      } else if (gameMode == GameMode.classic && questionType == QuestionType.multiple) {
+        // Classic MC: 5 facili + 5 medie + 5 difficili
+        print('Loading questions for Classic MC mode...');
+
+        final easyQuestions = await _quizService.fetchQuestionsDirectly(
+          medium: medium,
+          questionType: questionType,
+          difficulty: QuestionDifficulty.easy,
+          limit: 5,
+        );
+
+        final mediumQuestions = await _quizService.fetchQuestionsDirectly(
+          medium: medium,
+          questionType: questionType,
+          difficulty: QuestionDifficulty.medium,
+          limit: 5,
+        );
+
+        final hardQuestions = await _quizService.fetchQuestionsDirectly(
+          medium: medium,
+          questionType: questionType,
+          difficulty: QuestionDifficulty.hard,
+          limit: 5,
+        );
+
+        questions = [...easyQuestions, ...mediumQuestions, ...hardQuestions];
+        print('Loaded ${questions.length} questions total');
+
+      } else if (gameMode == GameMode.timeAttack) {
+        // Time Attack: carica tutte le domande disponibili per il loop
+        print('Loading all questions for Time Attack mode...');
+
+        questions = await _quizService.fetchQuestionsDirectly(
+          medium: medium,
+          questionType: questionType,
+          limit: 100,  // Prendi tutte le disponibili
+        );
+
+        _allQuestionsForLoop = List.from(questions);
+        print('Loaded ${questions.length} questions for looping');
+
+      } else {
+        // Altre modalità: usa il numero standard
+        questions = await _quizService.fetchQuestionsDirectly(
+          medium: medium,
+          questionType: questionType,
+          limit: numberOfQuestions,
+        );
+      }
+
+      // Se abbiamo domande, crea la sessione
+      if (questions.isNotEmpty) {
+        final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+
+        _currentSession = QuizSession(
+          sessionId: sessionId,
+          medium: medium,
+          questionType: questionType,
+          questions: questions,
+        );
+
+        // Start timer for first question
+        _questionStartTime = DateTime.now();
+
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = 'Nessuna domanda disponibile per questa configurazione';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
     } catch (e) {
       _errorMessage = 'Errore nel caricamento del quiz: $e';
       _isLoading = false;
@@ -107,9 +225,29 @@ class QuizController extends ChangeNotifier {
     }
   }
 
+  // Determina il numero di domande per modalità
+  int _getQuestionsCountForMode(GameMode mode, QuestionType type) {
+    switch (mode) {
+      case GameMode.classic:
+        return 15;  // Sempre 15 per Classic
+      case GameMode.timeAttack:
+        return 60;  // 60 domande per Time Attack (con loop)
+      case GameMode.liar:
+        return 15;  // 15 per Il Bugiardo
+      case GameMode.zen:
+        return 100; // Molte domande per Zen (tutte disponibili)
+    }
+  }
+
   // Submit answer for current question
   Future<AnswerResult> submitAnswer(dynamic answer) async {
     if (_currentSession == null || _currentSession!.isComplete) {
+      // Se siamo in Time Attack e finiamo le domande, ricomincia il loop
+      if (_currentGameMode == GameMode.timeAttack && _allQuestionsForLoop.isNotEmpty) {
+        _handleTimeAttackLoop();
+        return submitAnswer(answer);  // Riprova con la nuova domanda
+      }
+
       return AnswerResult(
         isCorrect: false,
         xpEarned: 0,
@@ -122,14 +260,26 @@ class QuizController extends ChangeNotifier {
         ? DateTime.now().difference(_questionStartTime!).inMilliseconds / 1000.0
         : 10.0;
 
+    // Per modalità "Il Bugiardo", inverti la risposta corretta
+    dynamic correctAnswer = _currentSession!.currentQuestion?.correctAnswer;
+    if (_currentGameMode == GameMode.liar && _currentSession!.currentQuestion?.type == QuestionType.truefalse) {
+      // Inverti true/false per Il Bugiardo
+      correctAnswer = !(correctAnswer as bool);
+    }
+
     // Check if answer is correct
-    final isCorrect = answer == _currentSession!.currentQuestion?.correctAnswer;
+    final isCorrect = answer == correctAnswer;
 
     // Update streak
     if (isCorrect) {
       _correctStreak++;
     } else {
       _correctStreak = 0;
+
+      // In modalità Liar, una risposta sbagliata termina il gioco
+      if (_currentGameMode == GameMode.liar) {
+        await _handleGameOver();
+      }
     }
 
     // Submit to session
@@ -156,7 +306,12 @@ class QuizController extends ChangeNotifier {
 
     // Check if quiz is complete
     if (_currentSession!.isComplete) {
-      await _handleQuizComplete();
+      // In Time Attack, continua con il loop
+      if (_currentGameMode == GameMode.timeAttack && _allQuestionsForLoop.isNotEmpty) {
+        _handleTimeAttackLoop();
+      } else {
+        await _handleQuizComplete();
+      }
     } else {
       // Start timer for next question
       _questionStartTime = DateTime.now();
@@ -169,6 +324,26 @@ class QuizController extends ChangeNotifier {
       xpEarned: xpEarned,
       message: mascotMessage,
     );
+  }
+
+  // Gestisce il loop delle domande in Time Attack
+  void _handleTimeAttackLoop() {
+    if (_allQuestionsForLoop.isEmpty) return;
+
+    // Ricomincia dal primo set di domande
+    _loopIndex = 0;
+
+    // Aggiungi nuove domande alla sessione corrente
+    final newQuestions = List<Question>.from(_allQuestionsForLoop);
+    _currentSession!.questions.addAll(newQuestions);
+
+    print('Looping questions in Time Attack mode. Total questions now: ${_currentSession!.questions.length}');
+  }
+
+  // Handle game over (for Liar mode)
+  Future<void> _handleGameOver() async {
+    // Salva punteggio parziale e termina
+    await _handleQuizComplete();
   }
 
   // Skip current question
@@ -233,6 +408,7 @@ class QuizController extends ChangeNotifier {
     return startQuiz(
       medium: _currentSession!.medium,
       questionType: _currentSession!.questionType,
+      gameMode: _currentGameMode,
     );
   }
 
@@ -245,6 +421,8 @@ class QuizController extends ChangeNotifier {
       }
       _currentSession = null;
       _correctStreak = 0;
+      _allQuestionsForLoop.clear();
+      _loopIndex = 0;
       notifyListeners();
     }
   }
@@ -254,30 +432,7 @@ class QuizController extends ChangeNotifier {
     final userId = _progressionController.currentUserId;
     if (userId == null) return [];
 
-    // For now, return mock data
-    // In production, this would fetch from Firestore
-    return [
-      {
-        'startTime': DateTime.now().subtract(const Duration(days: 1)),
-        'scorePercentage': 85.0,
-        'totalXpEarned': 150,
-        'questionType': 'multiple',
-        'correctAnswers': 17,
-        'totalQuestions': 20,
-        'sessionDuration': 245,
-        'averageResponseTime': 8.5,
-      },
-      {
-        'startTime': DateTime.now().subtract(const Duration(days: 2)),
-        'scorePercentage': 70.0,
-        'totalXpEarned': 100,
-        'questionType': 'truefalse',
-        'correctAnswers': 7,
-        'totalQuestions': 10,
-        'sessionDuration': 120,
-        'averageResponseTime': 6.2,
-      },
-    ];
+    return await _firestoreService.getGameHistory(userId);
   }
 
   // Get medium statistics
