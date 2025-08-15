@@ -10,29 +10,28 @@ enum QuestionType {
   misleading,
 }
 
+// Semplificato a 3 livelli come nel database
 enum QuestionDifficulty {
-  veryEasy,
-  easy,
-  medium,
-  hard,
-  veryHard,
+  easy,    // 1
+  medium,  // 2
+  hard,    // 3
 }
 
 class Question {
   final String id;
   final String text;  // Testo principale (useremo statement/question per multilingua)
   final MediumType medium;
-  final String? opera;  // NUOVO: opera specifica (es: "dragon_quest_8")
+  final String? opera;  // Opera specifica (es: "dragon_quest_8")
   final QuestionDifficulty difficulty;
   final QuestionType type;
   final dynamic correctAnswer;
   final List<dynamic> options;
   final String? imageUrl;
   final String? hint;
-  final String? explanation;  // NUOVO: spiegazione della risposta
+  final String? explanation;  // Spiegazione della risposta
   final Map<String, dynamic> metadata;
 
-  // NUOVO: Campi multilingua
+  // Campi multilingua
   final Map<String, String>? statement;  // Per true/false
   final Map<String, String>? question;   // Per multiple choice
   final List<Map<String, String>>? localizedOptions;  // Opzioni multilingua per multiple
@@ -116,7 +115,7 @@ class Question {
       text: mainText,
       medium: _parseMedium(data['medium']),
       opera: data['opera'],
-      difficulty: _parseDifficulty(data['difficulty'] ?? 3),
+      difficulty: _parseDifficulty(data['difficulty'] ?? 2),
       type: type,
       correctAnswer: data['correctAnswer'],
       options: options,
@@ -213,14 +212,15 @@ class Question {
     }
   }
 
+  // FIXED: Parsing difficoltà con solo 3 livelli (1, 2, 3)
   static QuestionDifficulty _parseDifficulty(dynamic difficulty) {
     // Il database usa direttamente 1, 2, 3 come numeri
-    int diffValue = 3;  // Default medio
+    int diffValue = 2;  // Default medio
 
     if (difficulty is int) {
       diffValue = difficulty;
     } else if (difficulty is String) {
-      diffValue = int.tryParse(difficulty) ?? 3;
+      diffValue = int.tryParse(difficulty) ?? 2;
     }
 
     switch (diffValue) {
@@ -254,13 +254,14 @@ class Question {
     }
   }
 
-  // Get timer duration based on question type (in seconds)
+  // FIXED: Timer duration basato su modalità (questo verrà gestito dal controller)
+  // Qui mettiamo solo i timer base per domanda
   int get timerDuration {
     switch (type) {
       case QuestionType.truefalse:
-        return 15;
+        return 20;  // Classic mode: 20 secondi
       case QuestionType.multiple:
-        return 20;
+        return 60;  // Classic mode: 60 secondi
       case QuestionType.uglyImages:
         return 25;
       case QuestionType.misleading:
@@ -282,19 +283,15 @@ class Question {
     }
   }
 
-  // Get difficulty multiplier for XP calculation
+  // FIXED: Difficulty multiplier per XP calculation con 3 livelli
   double get difficultyMultiplier {
     switch (difficulty) {
-      case QuestionDifficulty.veryEasy:
-        return 0.8;
       case QuestionDifficulty.easy:
         return 1.0;
       case QuestionDifficulty.medium:
         return 1.2;
       case QuestionDifficulty.hard:
         return 1.5;
-      case QuestionDifficulty.veryHard:
-        return 2.0;
     }
   }
 }
@@ -329,35 +326,27 @@ extension QuestionTypeExtension on QuestionType {
   }
 }
 
-// Extension for QuestionDifficulty display
+// FIXED: Extension for QuestionDifficulty con solo 3 livelli
 extension QuestionDifficultyExtension on QuestionDifficulty {
   String get displayName {
     switch (this) {
-      case QuestionDifficulty.veryEasy:
-        return 'Molto Facile';
       case QuestionDifficulty.easy:
         return 'Facile';
       case QuestionDifficulty.medium:
         return 'Medio';
       case QuestionDifficulty.hard:
         return 'Difficile';
-      case QuestionDifficulty.veryHard:
-        return 'Molto Difficile';
     }
   }
 
-  // Restituisce il valore numerico per il database (1-3 o 1-5)
+  // Restituisce il valore numerico per il database (1-3)
   int get value {
     switch (this) {
-      case QuestionDifficulty.veryEasy:
-        return 1;
       case QuestionDifficulty.easy:
         return 1;
       case QuestionDifficulty.medium:
         return 2;
       case QuestionDifficulty.hard:
-        return 3;
-      case QuestionDifficulty.veryHard:
         return 3;
     }
   }

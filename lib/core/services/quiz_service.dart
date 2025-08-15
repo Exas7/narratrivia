@@ -149,7 +149,7 @@ class QuizService {
     }
   }
 
-  // Submit answer for current question
+  // Submit answer for current question - FIXED FOR MC
   bool submitAnswer(dynamic answer) {
     if (_currentSession == null || _currentSession!.isComplete) {
       return false;
@@ -160,7 +160,6 @@ class QuizService {
       return false;
     }
 
-    // Check if answer is correct
     bool isCorrect = false;
 
     // Per true/false, confronta booleani
@@ -168,25 +167,33 @@ class QuizService {
       isCorrect = answer == currentQuestion.correctAnswer;
       print('TF Answer check: User answered $answer, correct was ${currentQuestion.correctAnswer}, result: $isCorrect');
     }
-    // Per multiple choice, confronta indici o stringhe
+    // Per multiple choice - FIX PRINCIPALE
     else if (currentQuestion.type == QuestionType.multiple) {
-      // Se correctAnswer è un indice numerico
+      // Il database salva correctAnswer come indice numerico (0-3)
       if (currentQuestion.correctAnswer is int) {
+        final correctIndex = currentQuestion.correctAnswer as int;
+
+        // Se l'utente ha passato l'indice
         if (answer is int) {
-          isCorrect = answer == currentQuestion.correctAnswer;
-        } else if (answer is String) {
-          // Confronta con l'opzione all'indice
-          final correctIndex = currentQuestion.correctAnswer as int;
-          if (correctIndex < currentQuestion.options.length) {
-            isCorrect = answer == currentQuestion.options[correctIndex];
-          }
+          isCorrect = answer == correctIndex;
         }
+        // Se l'utente ha passato la stringa dell'opzione
+        else if (answer is String) {
+          // Trova l'indice dell'opzione selezionata
+          final selectedIndex = currentQuestion.options.indexOf(answer);
+          isCorrect = selectedIndex == correctIndex;
+        }
+
+        print('MC Answer check:');
+        print('  - Correct index: $correctIndex');
+        print('  - Correct option: ${currentQuestion.options[correctIndex]}');
+        print('  - User answer: $answer');
+        print('  - Result: $isCorrect');
       }
-      // Se correctAnswer è una stringa
+      // Fallback se correctAnswer è una stringa (vecchio formato)
       else if (currentQuestion.correctAnswer is String) {
         isCorrect = answer.toString() == currentQuestion.correctAnswer;
       }
-      print('MC Answer check: User answered $answer, correct was ${currentQuestion.correctAnswer}, result: $isCorrect');
     }
 
     // Calculate response time (per ora uso un valore casuale, in produzione sarebbe tracciato)
@@ -233,14 +240,17 @@ class QuizService {
   }
 
   // Get all questions for a medium (for Zen mode)
-  Future<List<Question>> getAllQuestionsForMedium(MediumType medium) async {
+  Future<List<Question>> getAllQuestionsForMedium(
+      MediumType medium, {
+        QuestionType? questionType,
+      }) async {
     try {
-      print('📚 Fetching all questions for medium: ${medium.name}');
+      print('📚 Fetching all questions for medium: ${medium.name}, type: ${questionType?.name ?? "all"}');
 
       // Fetch all available questions
       final questions = await _firestoreService.getQuestions(
         medium: medium,
-        type: null,  // Tutti i tipi
+        type: questionType,  // Può essere null per prendere tutti i tipi
         difficulty: null,  // Tutte le difficoltà
         limit: 200,  // Limite alto per prendere tutte
         randomize: true,

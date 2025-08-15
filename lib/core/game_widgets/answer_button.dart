@@ -1,4 +1,4 @@
-// lib/widgets/quiz/answer_button.dart
+// lib/core/game_widgets/answer_button.dart
 
 import 'package:flutter/material.dart';
 import '../../core/services/audio_manager.dart';
@@ -30,6 +30,7 @@ class AnswerButton extends StatefulWidget {
 class _AnswerButtonState extends State<AnswerButton> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
+  late Animation<double> _flashAnimation;
   bool _isPressed = false;
 
   @override
@@ -39,6 +40,7 @@ class _AnswerButtonState extends State<AnswerButton> with SingleTickerProviderSt
       duration: const Duration(milliseconds: 150),
       vsync: this,
     );
+
     _scaleAnimation = Tween<double>(
       begin: 1.0,
       end: 0.95,
@@ -46,6 +48,30 @@ class _AnswerButtonState extends State<AnswerButton> with SingleTickerProviderSt
       parent: _animationController,
       curve: Curves.easeInOut,
     ));
+
+    // Animation for flash effect when showing result
+    _flashAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+
+    // Start flash animation if showing result
+    if (widget.showResult) {
+      _animationController.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(AnswerButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Trigger flash animation when result is shown
+    if (!oldWidget.showResult && widget.showResult) {
+      _animationController.forward(from: 0);
+    }
   }
 
   @override
@@ -90,9 +116,12 @@ class _AnswerButtonState extends State<AnswerButton> with SingleTickerProviderSt
 
   Color _getBackgroundColor() {
     if (widget.showResult) {
-      return widget.isCorrect
-          ? Colors.green.withOpacity(0.3)
-          : Colors.red.withOpacity(0.3);
+      // Durante il feedback, mostra verde o rosso
+      if (widget.isCorrect) {
+        return Colors.green.withOpacity(0.3);
+      } else {
+        return Colors.red.withOpacity(0.3);
+      }
     }
 
     if (widget.isDisabled) {
@@ -108,7 +137,12 @@ class _AnswerButtonState extends State<AnswerButton> with SingleTickerProviderSt
 
   Color _getBorderColor() {
     if (widget.showResult) {
-      return widget.isCorrect ? Colors.green : Colors.red;
+      // Durante il feedback, bordo verde o rosso
+      if (widget.isCorrect) {
+        return Colors.green;
+      } else {
+        return Colors.red;
+      }
     }
 
     if (widget.isDisabled) {
@@ -120,6 +154,76 @@ class _AnswerButtonState extends State<AnswerButton> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    // Se showResult è true, anima l'apparizione del risultato
+    if (widget.showResult) {
+      return AnimatedBuilder(
+        animation: _flashAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: 0.95 + (_flashAnimation.value * 0.05),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: 60,
+              decoration: BoxDecoration(
+                color: widget.isCorrect
+                    ? Colors.green.withOpacity(0.2 + _flashAnimation.value * 0.2)
+                    : Colors.red.withOpacity(0.2 + _flashAnimation.value * 0.2),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: widget.isCorrect ? Colors.green : Colors.red,
+                  width: 2 + _flashAnimation.value,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.isCorrect
+                        ? Colors.green.withOpacity(0.3 * _flashAnimation.value)
+                        : Colors.red.withOpacity(0.3 * _flashAnimation.value),
+                    blurRadius: 10 + (10 * _flashAnimation.value),
+                    spreadRadius: 1 + (2 * _flashAnimation.value),
+                  ),
+                ],
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Main label
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      widget.label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+
+                  // Result indicator icon
+                  Positioned(
+                    right: 16,
+                    child: Icon(
+                      widget.isCorrect
+                          ? Icons.check_circle
+                          : Icons.cancel,
+                      color: widget.isCorrect
+                          ? Colors.green
+                          : Colors.red,
+                      size: 24,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    // Normal button (not showing result)
     return GestureDetector(
       onTapDown: _handleTapDown,
       onTapUp: _handleTapUp,
@@ -129,7 +233,7 @@ class _AnswerButtonState extends State<AnswerButton> with SingleTickerProviderSt
         animation: _scaleAnimation,
         builder: (context, child) {
           return Transform.scale(
-            scale: _scaleAnimation.value,
+            scale: _isPressed ? _scaleAnimation.value : 1.0,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               height: 60,
@@ -149,42 +253,23 @@ class _AnswerButtonState extends State<AnswerButton> with SingleTickerProviderSt
                     ),
                 ],
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Main label
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      widget.label,
-                      style: TextStyle(
-                        color: widget.isDisabled
-                            ? Colors.grey[500]
-                            : Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    widget.label,
+                    style: TextStyle(
+                      color: widget.isDisabled
+                          ? Colors.grey[500]
+                          : Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-
-                  // Result indicator
-                  if (widget.showResult)
-                    Positioned(
-                      right: 16,
-                      child: Icon(
-                        widget.isCorrect
-                            ? Icons.check_circle
-                            : Icons.cancel,
-                        color: widget.isCorrect
-                            ? Colors.green
-                            : Colors.red,
-                        size: 24,
-                      ),
-                    ),
-                ],
+                ),
               ),
             ),
           );

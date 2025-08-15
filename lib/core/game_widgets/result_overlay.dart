@@ -1,15 +1,18 @@
-// lib/widgets/quiz/result_overlay.dart
+// lib/core/game_widgets/result_overlay.dart
 
 import 'package:flutter/material.dart';
 import '../../core/models/quiz_session.dart';
 import '../../core/models/medium_type.dart';
 import '../../core/services/audio_manager.dart';
+import '../../core/controllers/quiz_controller.dart';
 
 class ResultOverlay extends StatefulWidget {
   final QuizSession session;
   final VoidCallback onContinue;
   final VoidCallback onReplay;
   final VoidCallback onExit;
+  final GameMode? gameMode;
+  final double? streakMultiplier;
 
   const ResultOverlay({
     super.key,
@@ -17,48 +20,83 @@ class ResultOverlay extends StatefulWidget {
     required this.onContinue,
     required this.onReplay,
     required this.onExit,
+    this.gameMode,
+    this.streakMultiplier,
   });
 
   @override
   State<ResultOverlay> createState() => _ResultOverlayState();
 }
 
-class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
+class _ResultOverlayState extends State<ResultOverlay> with TickerProviderStateMixin {
+  late AnimationController _fadeController;
+  late AnimationController _scaleController;
+  late AnimationController _scoreController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  late Animation<double> _scoreAnimation;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
+
+    // Fade animation
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
+    );
+
+    // Scale animation for container
+    _scaleController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
-
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
-    );
-
     _scaleAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.3, 1.0, curve: Curves.elasticOut),
+      parent: _scaleController,
+      curve: Curves.elasticOut,
     );
 
-    _animationController.forward();
+    // Score counter animation
+    _scoreController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _scoreAnimation = Tween<double>(
+      begin: 0,
+      end: widget.session.scorePercentage,
+    ).animate(CurvedAnimation(
+      parent: _scoreController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    // Start animations
+    _fadeController.forward();
+    _scaleController.forward();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _scoreController.forward();
+    });
+
     _playResultSound();
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _fadeController.dispose();
+    _scaleController.dispose();
+    _scoreController.dispose();
     super.dispose();
   }
 
   void _playResultSound() async {
     final percentage = widget.session.scorePercentage;
-    if (percentage >= 80) {
+    if (percentage == 100) {
+      // Perfect game sound
+      await AudioManager().playAchievementUnlock();
+    } else if (percentage >= 80) {
       await AudioManager().playLevelUp();
     } else if (percentage >= 60) {
       await AudioManager().playCorrectAnswer();
@@ -68,26 +106,35 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
   }
 
   Color _getMediumColor() {
-    switch (widget.session.medium) {
-      case MediumType.videogames:
-        return const Color(0xFF63FF47);
-      case MediumType.books:
-        return const Color(0xFFFFBF00);
-      case MediumType.comics:
-        return const Color(0xFFFFFF00);
-      case MediumType.manga:
-        return const Color(0xFFFF0800);
-      case MediumType.anime:
-        return const Color(0xFFFFB7C5);
-      case MediumType.tvSeries:
-        return const Color(0xFF007BFF);
-      case MediumType.movies:
-        return const Color(0xFFBD00FF);
+    final medium = widget.session.medium;
+    if (medium == MediumType.videogames) {
+      return const Color(0xFF63FF47);
+    } else if (medium == MediumType.books) {
+      return const Color(0xFFFFBF00);
+    } else if (medium == MediumType.comics) {
+      return const Color(0xFFFFFF00);
+    } else if (medium == MediumType.manga) {
+      return const Color(0xFFFF0800);
+    } else if (medium == MediumType.anime) {
+      return const Color(0xFFFFB7C5);
+    } else if (medium == MediumType.tvSeries) {
+      return const Color(0xFF007BFF);
+    } else if (medium == MediumType.movies) {
+      return const Color(0xFFBD00FF);
     }
+    return Colors.blue;
   }
 
   String _getPerformanceMessage() {
     final percentage = widget.session.scorePercentage;
+
+    // Game mode specific messages
+    if (widget.gameMode == GameMode.liar || widget.gameMode == GameMode.challenge) {
+      if (percentage < 100) {
+        return 'Game Over! 💀';
+      }
+    }
+
     if (percentage == 100) {
       return 'PERFETTO! 🎉';
     } else if (percentage >= 90) {
@@ -102,6 +149,25 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
       return 'Puoi fare meglio! 💪';
     } else {
       return 'Continua a provare! 🎯';
+    }
+  }
+
+  String _getGameModeTitle() {
+    if (widget.gameMode == null) return 'Quiz Completato!';
+
+    switch (widget.gameMode!) {
+      case GameMode.classic:
+        return 'Classic Mode Completato!';
+      case GameMode.timeAttack:
+        return 'Time Attack Completato!';
+      case GameMode.timeSurvival:
+        return 'Time Survival Terminato!';
+      case GameMode.liar:
+        return 'Il Bugiardo Completato!';
+      case GameMode.challenge:
+        return 'Challenge Mode Completato!';
+      case GameMode.zen:
+        return 'Zen Mode Completato!';
     }
   }
 
@@ -121,14 +187,14 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
           Icon(
             icon,
             color: color,
-            size: 30,
+            size: 28,
           ),
           const SizedBox(height: 8),
           Text(
             value,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 24,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -137,7 +203,7 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
             label,
             style: TextStyle(
               color: Colors.white.withOpacity(0.7),
-              fontSize: 14,
+              fontSize: 13,
             ),
           ),
         ],
@@ -148,7 +214,9 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final mediumColor = _getMediumColor();
-    final percentage = widget.session.scorePercentage.round();
+    final finalXP = widget.streakMultiplier != null
+        ? (widget.session.totalXpEarned * widget.streakMultiplier!).round()
+        : widget.session.totalXpEarned;
 
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -182,12 +250,13 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
                   children: [
                     // Title
                     Text(
-                      'Quiz Completato!',
+                      _getGameModeTitle(),
                       style: TextStyle(
                         color: mediumColor,
-                        fontSize: 28,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
 
@@ -201,7 +270,7 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
                     ),
                     const SizedBox(height: 24),
 
-                    // Score percentage circle
+                    // Score percentage circle with animation
                     Container(
                       width: 150,
                       height: 150,
@@ -216,37 +285,55 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
                         alignment: Alignment.center,
                         children: [
                           // Background circle
-                          CircularProgressIndicator(
-                            value: 1,
-                            strokeWidth: 8,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.grey[800]!,
-                            ),
-                          ),
-                          // Progress circle
                           SizedBox(
                             width: 140,
                             height: 140,
                             child: CircularProgressIndicator(
-                              value: widget.session.scorePercentage / 100,
+                              value: 1,
                               strokeWidth: 8,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                mediumColor,
+                                Colors.grey[800]!,
                               ),
-                              backgroundColor: Colors.grey[800],
+                            ),
+                          ),
+                          // Animated progress circle
+                          SizedBox(
+                            width: 140,
+                            height: 140,
+                            child: AnimatedBuilder(
+                              animation: _scoreAnimation,
+                              builder: (context, child) {
+                                return CircularProgressIndicator(
+                                  value: _scoreAnimation.value / 100,
+                                  strokeWidth: 8,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    _scoreAnimation.value >= 80
+                                        ? Colors.green
+                                        : _scoreAnimation.value >= 60
+                                        ? Colors.yellow
+                                        : Colors.red,
+                                  ),
+                                  backgroundColor: Colors.transparent,
+                                );
+                              },
                             ),
                           ),
                           // Percentage text
                           Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                '$percentage%',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              AnimatedBuilder(
+                                animation: _scoreAnimation,
+                                builder: (context, child) {
+                                  return Text(
+                                    '${_scoreAnimation.value.round()}%',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 36,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  );
+                                },
                               ),
                               Text(
                                 '${widget.session.correctAnswers}/${widget.session.totalQuestions}',
@@ -268,8 +355,8 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
                       children: [
                         Expanded(
                           child: _buildStatCard(
-                            'XP Guadagnati',
-                            '+${widget.session.totalXpEarned}',
+                            'XP Totali',
+                            '+$finalXP',
                             Icons.star,
                             Colors.amber,
                           ),
@@ -286,6 +373,8 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
                       ],
                     ),
                     const SizedBox(height: 8),
+
+                    // Additional stats row
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
@@ -308,14 +397,53 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
                         ),
                       ],
                     ),
+
+                    // Show multiplier if present
+                    if (widget.streakMultiplier != null && widget.streakMultiplier! > 1.0) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.purple.withOpacity(0.4),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.flash_on,
+                              color: Colors.purple,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Moltiplicatore finale: x${widget.streakMultiplier!.toStringAsFixed(1)}',
+                              style: const TextStyle(
+                                color: Colors.purple,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 24),
 
-                    // Action buttons
+                    // Action buttons - Solo RIGIOCA e CONTINUA
                     Row(
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: widget.onReplay,
+                            onPressed: () async {
+                              await AudioManager().playButtonClick();
+                              widget.onReplay();
+                            },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.grey[800],
                               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -328,6 +456,7 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
+                                color: Colors.white,
                               ),
                             ),
                           ),
@@ -335,7 +464,10 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: widget.onContinue,
+                            onPressed: () async {
+                              await AudioManager().playButtonClick();
+                              widget.onContinue();
+                            },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: mediumColor,
                               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -354,17 +486,6 @@ class _ResultOverlayState extends State<ResultOverlay> with SingleTickerProvider
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: widget.onExit,
-                      child: Text(
-                        'Torna alla stanza',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
-                          fontSize: 14,
-                        ),
-                      ),
                     ),
                   ],
                 ),

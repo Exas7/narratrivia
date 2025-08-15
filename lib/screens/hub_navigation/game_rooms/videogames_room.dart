@@ -38,6 +38,9 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
   bool _showSettingsPanel = false;
   bool _showResultOverlay = false;
 
+  // Selezione tipo di domanda
+  QuestionType? _selectedQuestionType;
+
   @override
   void initState() {
     super.initState();
@@ -47,7 +50,22 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
     });
   }
 
-  void _startGame(BuildContext context, QuestionType questionType, GameMode gameMode) async {
+  void _showQuestionTypeSelection() {
+    setState(() {
+      _showGameButtons = true;
+      _selectedQuestionType = null;
+    });
+  }
+
+  void _selectQuestionType(QuestionType type) {
+    setState(() {
+      _selectedQuestionType = type;
+    });
+  }
+
+  void _startGame(BuildContext context, GameMode gameMode) async {
+    if (_selectedQuestionType == null) return;
+
     final quizController = context.read<QuizController>();
 
     // Nascondi i pulsanti prima di iniziare
@@ -58,7 +76,7 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
     // Avvia il quiz con la modalità selezionata
     final success = await quizController.startQuiz(
       medium: MediumType.videogames,
-      questionType: questionType,
+      questionType: _selectedQuestionType!,
       gameMode: gameMode,
     );
 
@@ -73,15 +91,6 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
         );
       }
     }
-  }
-
-  void _closeQuizOverlay(BuildContext context) {
-    final quizController = context.read<QuizController>();
-    quizController.endSession();
-    setState(() {
-      _showGameButtons = false;
-      _showResultOverlay = false;
-    });
   }
 
   void _handleQuizComplete(BuildContext context) {
@@ -99,17 +108,11 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
   }
 
   void _handleContinue(BuildContext context) {
-    setState(() {
-      _showResultOverlay = false;
-    });
-    // Qui potresti navigare a un'altra schermata o mostrare altre opzioni
-  }
-
-  void _handleExit(BuildContext context) {
     final quizController = context.read<QuizController>();
     quizController.endSession();
     setState(() {
       _showResultOverlay = false;
+      _selectedQuestionType = null;
     });
   }
 
@@ -158,43 +161,19 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
 
               // 4. Quiz Overlay
               if (controller.currentSession != null && !controller.currentSession!.isComplete)
-                GestureDetector(
-                  onTap: () {
-                    // Tap fuori chiude il quiz
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Uscire dal quiz?'),
-                        content: const Text('Perderai i progressi di questa partita.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Continua'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _closeQuizOverlay(context);
-                            },
-                            child: const Text('Esci'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  child: Container(
-                    color: Colors.transparent,
-                    child: QuizOverlay(controller: controller),
-                  ),
-                ),
+                QuizOverlay(controller: controller),
 
               // 5. Result Overlay
               if (_showResultOverlay && controller.currentSession != null)
                 ResultOverlay(
                   session: controller.currentSession!,
+                  gameMode: controller.currentGameMode,
+                  streakMultiplier: controller.currentGameMode == GameMode.timeAttack
+                      ? controller.streakMultiplier
+                      : null,
                   onContinue: () => _handleContinue(context),
                   onReplay: () => _handleReplay(context),
-                  onExit: () => _handleExit(context),
+                  onExit: () => _handleContinue(context),
                 ),
             ],
           );
@@ -235,11 +214,7 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
           height: screenHeight * 0.4,
           child: GestureDetector(
             onTap: () {
-              setState(() {
-                _showGameButtons = !_showGameButtons;
-                _showHistoryPanel = false;
-                _showSettingsPanel = false;
-              });
+              _showQuestionTypeSelection();
               AudioManager().playButtonClick();
             },
             child: Container(
@@ -248,7 +223,7 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
           ),
         ),
 
-        // Hotspot destro (80% larghezza) - Impostazioni
+        // Hotspot destro (20% larghezza) - Impostazioni
         Positioned(
           right: 0,
           top: screenHeight * 0.3,
@@ -320,6 +295,7 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
       onTap: () {
         setState(() {
           _showGameButtons = false;
+          _selectedQuestionType = null;
         });
       },
       child: Container(
@@ -330,6 +306,7 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
             child: Container(
               padding: const EdgeInsets.all(24),
               margin: const EdgeInsets.symmetric(horizontal: 40),
+              constraints: const BoxConstraints(maxHeight: 600),
               decoration: BoxDecoration(
                 color: const Color(0xFF1E1E1E),
                 borderRadius: BorderRadius.circular(20),
@@ -349,7 +326,9 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Seleziona Modalità',
+                        _selectedQuestionType == null
+                            ? 'Seleziona Tipo di Domanda'
+                            : 'Seleziona Modalità',
                         style: TextStyle(
                           color: mediumColor,
                           fontSize: 22,
@@ -361,6 +340,7 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
                         onPressed: () {
                           setState(() {
                             _showGameButtons = false;
+                            _selectedQuestionType = null;
                           });
                         },
                       ),
@@ -368,43 +348,52 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
                   ),
                   const SizedBox(height: 20),
 
-                  // VERO/FALSO - Classic Mode
-                  _buildModeButton(
-                    context,
-                    'Vero / Falso - Classic',
-                    '15 domande (5+5+5), 20 sec per domanda',
-                    QuestionType.truefalse,
-                    GameMode.classic,
-                    mediumColor,
-                    Icons.check_circle_outline,
-                  ),
-                  const SizedBox(height: 12),
-
-                  // SCELTA MULTIPLA - Classic Mode
-                  _buildModeButton(
-                    context,
-                    'Scelta Multipla - Classic',
-                    '15 domande (5+5+5), 60 sec per domanda',
-                    QuestionType.multiple,
-                    GameMode.classic,
-                    mediumColor,
-                    Icons.grid_view_rounded,
-                  ),
-
-                  // Divider per future modalità
-                  const SizedBox(height: 20),
-                  const Divider(color: Colors.white24),
-                  const SizedBox(height: 8),
-
-                  // Placeholder per future modalità
-                  Text(
-                    'Altre modalità in arrivo...',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
-                      fontSize: 14,
-                      fontStyle: FontStyle.italic,
+                  // Se non è stato selezionato un tipo, mostra la selezione
+                  if (_selectedQuestionType == null) ...[
+                    _buildQuestionTypeButton(
+                      'Vero / Falso',
+                      '2 opzioni: Vero o Falso',
+                      QuestionType.truefalse,
+                      mediumColor,
+                      Icons.check_circle_outline,
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    _buildQuestionTypeButton(
+                      'Scelta Multipla',
+                      '4 opzioni di risposta',
+                      QuestionType.multiple,
+                      mediumColor,
+                      Icons.grid_view_rounded,
+                    ),
+                  ]
+                  // Altrimenti mostra le modalità per il tipo selezionato
+                  else ...[
+                    // Back button per tornare alla selezione tipo
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _selectedQuestionType = null;
+                        });
+                      },
+                      icon: const Icon(Icons.arrow_back, color: Colors.white70, size: 18),
+                      label: Text(
+                        _selectedQuestionType == QuestionType.truefalse
+                            ? 'Vero/Falso'
+                            : 'Scelta Multipla',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Modalità disponibili per il tipo selezionato
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: _buildGameModesForType(_selectedQuestionType!, mediumColor),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -414,11 +403,141 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
     );
   }
 
+  Widget _buildQuestionTypeButton(
+      String title,
+      String subtitle,
+      QuestionType type,
+      Color color,
+      IconData icon,
+      ) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: () => _selectQuestionType(type),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color.withOpacity(0.2),
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: color.withOpacity(0.5)),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 32),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: color.withOpacity(0.7),
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildGameModesForType(QuestionType type, Color color) {
+    List<Widget> modes = [];
+
+    // Classic Mode (per entrambi i tipi)
+    modes.add(_buildModeButton(
+      context,
+      'Classic Mode',
+      type == QuestionType.truefalse
+          ? '15 domande, 20 sec ciascuna'
+          : '15 domande, 60 sec ciascuna',
+      GameMode.classic,
+      color,
+      Icons.star,
+    ));
+    modes.add(const SizedBox(height: 12));
+
+    if (type == QuestionType.truefalse) {
+      // Modalità per Vero/Falso
+      modes.add(_buildModeButton(
+        context,
+        'Time Attack',
+        '90 secondi, bonus tempo per risposte corrette',
+        GameMode.timeAttack,
+        Colors.orange,
+        Icons.timer,
+      ));
+      modes.add(const SizedBox(height: 12));
+
+      modes.add(_buildModeButton(
+        context,
+        'Il Bugiardo',
+        'Logica invertita, 45 sec per domanda',
+        GameMode.liar,
+        Colors.purple,
+        Icons.psychology,
+      ));
+      modes.add(const SizedBox(height: 12));
+
+    } else if (type == QuestionType.multiple) {
+      // Modalità per Scelta Multipla
+      modes.add(_buildModeButton(
+        context,
+        'Time Survival',
+        'Sopravvivi il più a lungo possibile',
+        GameMode.timeSurvival,
+        Colors.red,
+        Icons.favorite,
+      ));
+      modes.add(const SizedBox(height: 12));
+
+      modes.add(_buildModeButton(
+        context,
+        'Challenge Mode',
+        'Game over al primo errore, 10 sec per domanda',
+        GameMode.challenge,
+        Colors.deepOrange,
+        Icons.whatshot,
+      ));
+      modes.add(const SizedBox(height: 12));
+    }
+
+    // Zen Mode (per entrambi)
+    modes.add(_buildModeButton(
+      context,
+      'Zen Mode',
+      'Nessun timer, solo pratica',
+      GameMode.zen,
+      Colors.cyan,
+      Icons.spa,
+    ));
+
+    return modes;
+  }
+
   Widget _buildModeButton(
       BuildContext context,
       String title,
       String subtitle,
-      QuestionType type,
       GameMode mode,
       Color color,
       IconData icon,
@@ -426,7 +545,7 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: () => _startGame(context, type, mode),
+        onPressed: () => _startGame(context, mode),
         style: ElevatedButton.styleFrom(
           backgroundColor: color.withOpacity(0.2),
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
@@ -437,11 +556,7 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              color: color,
-              size: 28,
-            ),
+            Icon(icon, color: color, size: 28),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -465,11 +580,6 @@ class _VideogamesRoomViewState extends State<_VideogamesRoomView> {
                   ),
                 ],
               ),
-            ),
-            Icon(
-              Icons.arrow_forward_ios,
-              color: color.withOpacity(0.7),
-              size: 20,
             ),
           ],
         ),
